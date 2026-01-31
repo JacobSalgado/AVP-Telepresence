@@ -16,6 +16,13 @@ struct AVP_TelepresenceApp: App {
         WindowGroup {
             ContentView()
                 .environment(appModel)
+                .background(.black.opacity(0.1))
+        }
+        
+        WindowGroup (id: "Instructions") {
+            InstructionsView()
+                .environment(appModel)
+                
         }
 
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
