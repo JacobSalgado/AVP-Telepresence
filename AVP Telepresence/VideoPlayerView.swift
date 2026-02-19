@@ -5,6 +5,7 @@
 //  Created by Research on 1/31/26.
 //
 
+import AVKit
 import SwiftUI
 
 struct VideoPlayerView: View {

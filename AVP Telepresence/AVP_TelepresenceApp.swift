@@ -19,13 +19,22 @@ struct AVP_TelepresenceApp: App {
                 .background(.black.opacity(0.1))
         }
         
+        // Instructions Screen
         WindowGroup (id: "Instructions") {
             InstructionsView()
                 .environment(appModel)
                 
         }
-
-        ImmersiveSpace(id: appModel.immersiveSpaceID) {
+        
+        // Video Player Environment
+        WindowGroup (id: "VideoPlayer") {
+            InstructionsView()
+                .environment(appModel)
+                
+        }
+        
+        // 360 DEGREE VIDEO
+        ImmersiveSpace(id: "VideoImmersiveView") {
             ImmersiveView()
                 .environment(appModel)
                 .onAppear {
