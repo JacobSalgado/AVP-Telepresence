@@ -12,6 +12,10 @@ import RealityKitContent
 let title = "Welcome to Telepresence";
 
 struct ContentView: View {
+    
+    @State private var transform: AffineTransform3D = .identity
+    @State private var opacity: CGFloat = 1
+    
     // variable to control the visibility of the imm space
     @State var showImmersiveSpace = false
     
@@ -22,59 +26,59 @@ struct ContentView: View {
     
     // Dismiss the space window
     @Environment(\.dismissImmersiveSpace) var dismissImmersiveSpace // close immersive space
-
+    
     var body: some View {
-        
-        // Switch the visibility of the immersive space
-        Toggle(showImmersiveSpace ? "Back to Reality" : "Show Immersive space", isOn: $showImmersiveSpace)
-            .toggleStyle(.button)
+        VStack {
+            RealityView { content in
+                let model = ModelEntity(
+                    mesh: .generateSphere(radius: 0.1),
+                    materials: [SimpleMaterial(color: .white, isMetallic: true)])
+                content.add(model)
+            }
+            .frame(height: 200)
             
-            // Trigger action when the value of showImmersiveSpace changes
-            .onChange(of: showImmersiveSpace) { _, newValue in
-                // asynchronous task for handling opening or dismissing the immersive space
-                Task
-                {
-                    if newValue
-                    {
+            Text("Welcome to AVP Telepresence!")
+                .font(.largeTitle)
+                .foregroundColor(.green)
+            
+            Button{
+                openWindow(id: "Instructions")
+            } label: {
+                Text("Open Instructions")
+            }
+            
+            Button {
+                Task {
+                    if showImmersiveSpace{
+                        await dismissImmersiveSpace()
+                        showImmersiveSpace = false
+                    } else {
                         await openImmersiveSpace(id: "VideoImmersiveView")
+                        showImmersiveSpace = true
                     }
-                    else
-                    {
+                }
+            } label: {
+                Text(showImmersiveSpace ? "Close 360 Video" : "Open 360 Video")
+            }
+            Toggle(showImmersiveSpace ? "Back to Reality" : "Show Immersive Space",
+                   isOn: $showImmersiveSpace)
+            .toggleStyle(.button)
+            .controlSize(.extraLarge)
+            .onChange(of: showImmersiveSpace) {_, newValue in
+                Task {
+                    if newValue {
+                        await openImmersiveSpace(id: "VideoImmersiveView")
+                    } else {
                         await dismissImmersiveSpace()
                     }
                 }
             }
-            // adjust control size of the toggle
-            .controlSize(.extraLarge)
-        
-        VStack {
-            /*Model3D(named: "Scene", bundle: realityKitContentBundle)
-                .padding(.bottom, 50)*/
-
-            Text("Welcome to AVP Telepresence!")
-                //.background(.red)
-                .font(.title)
-                .foregroundColor(.green)
-            
-            Button {
-                openWindow(id: "Instructions");
-            } label: {
-                Text("Open Instructions")
-            }
-            Button {
-                openWindow(id: "VideoPlayer");
-            } label: {
-                Text("Open 360 Video")
-            }
-
             ToggleImmersiveSpaceButton()
         }
         .padding()
     }
 }
-
-
-#Preview(windowStyle: .automatic) {
-    ContentView()
-        .environment(AppModel())
-}
+    #Preview(windowStyle: .automatic) {
+        ContentView()
+            .environment(AppModel())
+    }

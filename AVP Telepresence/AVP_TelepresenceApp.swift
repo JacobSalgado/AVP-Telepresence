@@ -6,18 +6,28 @@
 //
 
 import SwiftUI
+import GroupActivities
 
 @main
 struct AVP_TelepresenceApp: App {
 
     @State private var appModel = AppModel()
+    @State private var sessionManager = SessionManager()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(appModel)
                 .background(.black.opacity(0.1))
+                .task {
+                    // loop catches sessions initiated by either user
+                    for await session in CollabActivity.sessions() {
+                        sessionManager.configureSession(session)
+                    }
+                }
         }
+        //.windowStyle(.volumetric)
+        //.defaultSize(width: 0.5, height: 0.5, depth: 0.5, in: .meters)
         
         // Instructions Screen
         WindowGroup (id: "Instructions") {
@@ -28,7 +38,7 @@ struct AVP_TelepresenceApp: App {
         
         // Video Player Environment
         WindowGroup (id: "VideoPlayer") {
-            InstructionsView()
+            VideoPlayerView()
                 .environment(appModel)
                 
         }
