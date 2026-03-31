@@ -11,6 +11,8 @@ import RealityKitContent
 import AVFoundation
 
 struct ImmersiveView: View {
+    
+    @State private var cardEntity: ModelEntity? = nil
 
     var body: some View {
         RealityView { content in
@@ -22,8 +24,36 @@ struct ImmersiveView: View {
                 guard let skyBox = generateSkyBox() else { return }
                 
                 content.add(skyBox)
+                
+                let card = makeCard (
+                    width: 0.1,   // ~10cm wide
+                    height: 0.15, // ~15cm tall
+                    depth: 0.002, // ~2mm thick
+                    color: .white
+                )
+                
+                // card at eye level
+                card.position = SIMD3(x: 0, y: 1.5, z: -0.6)
+                
+                content.add(card)
+                cardEntity = card
             }
         }
+        /*update: { content in
+            // fill code here for Swiftui changes
+        }*/
+        .gesture(
+            DragGesture()
+                .targetedToAnyEntity()
+                .onChanged{ value in
+                    // move card
+                    cardEntity?.position = value.convert (
+                        value.gestureValue.location3D,
+                        from: .local,
+                        to: .scene
+                    )
+                }
+        )
     }
     // Returns a VideoMaterial
     func generateVideoMaterial() -> VideoMaterial? {
@@ -78,6 +108,31 @@ struct ImmersiveView: View {
         skyBoxEntity.scale *= .init(x: -1, y: 1, z: 1)
         
         return skyBoxEntity
+    }
+    
+    func makeCard(width: Float, height: Float, depth: Float, color: UIColor) -> ModelEntity {
+        
+        let mesh = MeshResource.generateBox(
+            width: width,
+            height: height,
+            depth: depth,
+            cornerRadius: 0.005
+        )
+        
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: color)
+        material.roughness = .init(floatLiteral: 0.8) // matte
+        material.metallic = .init(floatLiteral: 0.0)
+        
+        let card  = ModelEntity(mesh: mesh, materials: [material])
+        
+        // for gesture handling
+        card.generateCollisionShapes(recursive: false)
+        
+        // enable input (pinch gestures, etc.)
+        card.components.set(InputTargetComponent())
+        
+        return card
     }
 }
 

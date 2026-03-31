@@ -7,70 +7,117 @@
 
 import GroupActivities
 import Observation
+import Combine
+import RealityKit
+import Foundation
 
 @Observable
-final class SessionManager{
+class SessionManager {
+    var session: GroupSession<CollabActivity>?
+    var messenger : GroupSessionMessenger?
+    var participants: Set<Participant> = []
     
-    var sessionState : SessionState = .idle
-    var partnerJoined: Bool = false
+    private var subscriptions = Set<AnyCancellable>()
+    private var tasks = Set<Task<Void, Never>>()
     
-    private var groupSession: GroupSession<CollabActivity>?
-    
-    enum SessionState {
-        case idle           // not started
-        case waiting        // activity has started, waiting for partner to join
-        case connected      // partner joined the session
-        case failed(Error)
-    }
-    
-    // Start the activity
-    func startSession() {
-        Task {
-            let activity = CollabActivity()
-            
-            switch await activity.prepareForActivation() {
-            case .activationPreferred:
-                do {
-                    _ = try await activity.activate()
-                    
-                    sessionState = .waiting
-                } catch {
-                    sessionState = .failed(error)
-                }
-            case.activationDisabled:
-                print("GroupActivities not available on this device")
-            case .cancelled:
-                sessionState = .idle
-            
-            @unknown default:
-                break;
-            }
-        }
-    }
-    
-    // arriving session
     func configureSession(_ session: GroupSession<CollabActivity>){
-        self.groupSession = session
+        self.session = session
         
-        // watch for partner joining session
-        Task {
-            for await activeParticipants in session.$activeParticipants.values {
-                // more than 1 participant means a partner has joined
-                partnerJoined = activeParticipants.count > 1
-                if partnerJoined {
-                    sessionState = .connected
-                }
+        let messenger = GroupSessionMessenger(session: session)
+        self.messenger = messenger
+        
+        // track all the participants
+        session.$activeParticipants
+            .sink { [weak self] in self?.participants = $0}
+            .store(in: &subscriptions)
+        
+        // receive messages from other participant
+        let receiveTask = Task {
+            for await (message, context) in messenger.messages(of: SceneMessage.self) {
+                await self.handle(message, from:context.source)
             }
         }
-        
-        // join the session
+        tasks.insert(receiveTask)
         session.join()
     }
+    func send(_ message: SceneMessage){
+        Task{
+            try? await messenger?.send(message)
+        }
+    }
     
-    func endSession(){
-        groupSession?.leave()
-        groupSession = nil
-        sessionState = .idle
-        partnerJoined = false
+    @MainActor
+    private func handle(_ message: SceneMessage, from participant: Participant){
+        // apply synced state updates here
+        switch message {
+        case .objectMoved(let id, let transform):
+            // reality kit updates
+            break
+        }
+    }
+}
+
+struct CodableTransform: Codable {
+    let matrix: simd_float4x4
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        let cols = [matrix.columns.0, matrix.columns.1, matrix.columns.2, matrix.columns.3]
+        for col in cols {
+            try container.encode(col.x)
+            try container.encode(col.y)
+            try container.encode(col.z)
+            try container.encode(col.w)
+        }
+    }
+    
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        let values = try (0..<16).map { _ in try container.decode(Float.self) }
+        matrix = simd_float4x4(columns: (
+            SIMD4(values[0],  values[1],  values[2],  values[3]),
+            SIMD4(values[4],  values[5],  values[6],  values[7]),
+            SIMD4(values[8],  values[9],  values[10], values[11]),
+            SIMD4(values[12], values[13], values[14], values[15])
+        ))
+    }
+    
+    init(_ matrix: simd_float4x4) { self.matrix = matrix }
+}
+
+
+// message type
+enum SceneMessage: Codable {
+    case objectMoved(id: UUID, transform: CodableTransform)
+    
+    private enum CodingKeys: String, CodingKey {
+        case type, id, transform
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .objectMoved(let id, let transform):
+            try container.encode("objectMoved", forKey: .type)
+            try container.encode(id,            forKey: .id)
+            try container.encode(transform,     forKey: .transform)
+        }
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        switch type {
+        case "objectMoved":
+            let id        = try container.decode(UUID.self,             forKey: .id)
+            let transform = try container.decode(CodableTransform.self, forKey: .transform)
+            self = .objectMoved(id: id, transform: transform)
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Unknown SceneMessage type: \(type)"
+            )
+        }
     }
 }

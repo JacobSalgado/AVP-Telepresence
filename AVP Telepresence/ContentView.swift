@@ -27,6 +27,8 @@ struct ContentView: View {
     // Dismiss the space window
     @Environment(\.dismissImmersiveSpace) var dismissImmersiveSpace // close immersive space
     
+    @Environment(SessionManager.self) private var sessionManager
+    
     var body: some View {
         VStack {
             RealityView { content in

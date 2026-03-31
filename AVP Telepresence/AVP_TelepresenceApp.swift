@@ -18,6 +18,7 @@ struct AVP_TelepresenceApp: App {
         WindowGroup {
             ContentView()
                 .environment(appModel)
+                .environment(sessionManager)
                 .background(.black.opacity(0.1))
                 .task {
                     // loop catches sessions initiated by either user
@@ -47,6 +48,7 @@ struct AVP_TelepresenceApp: App {
         ImmersiveSpace(id: "VideoImmersiveView") {
             ImmersiveView()
                 .environment(appModel)
+                .environment(sessionManager)
                 .onAppear {
                     appModel.immersiveSpaceState = .open
                 }
