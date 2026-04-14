@@ -26,6 +26,21 @@ class SessionManager {
         let messenger = GroupSessionMessenger(session: session)
         self.messenger = messenger
         
+        Task {
+            guard let coordinator = await session.systemCoordinator else {return}
+            
+            var config = SystemCoordinator.Configuration()
+            
+            // show personas when immersive space is open
+            config.supportsGroupImmersiveSpace = true
+            
+            // put participants across from each other
+            // alt. options: .none, .sidebyside, .surround
+            config.spatialTemplatePreference = .none
+            
+            coordinator.configuration = config
+        }
+        
         // track all the participants
         session.$activeParticipants
             .sink { [weak self] in self?.participants = $0}

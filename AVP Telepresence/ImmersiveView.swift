@@ -29,11 +29,12 @@ struct ImmersiveView: View {
                     width: 0.1,   // ~10cm wide
                     height: 0.15, // ~15cm tall
                     depth: 0.002, // ~2mm thick
-                    color: .white
+                    label: "Test card",
+                    color: .red
                 )
                 
                 // card at eye level
-                card.position = SIMD3(x: 0, y: 1.5, z: -0.6)
+                card.position = SIMD3(x: 0, y: 1.5, z: 0)
                 
                 content.add(card)
                 cardEntity = card
@@ -110,7 +111,7 @@ struct ImmersiveView: View {
         return skyBoxEntity
     }
     
-    func makeCard(width: Float, height: Float, depth: Float, color: UIColor) -> ModelEntity {
+    func makeCard(width: Float, height: Float, depth: Float, label: String, color: UIColor) -> ModelEntity {
         
         let mesh = MeshResource.generateBox(
             width: width,
@@ -119,12 +120,34 @@ struct ImmersiveView: View {
             cornerRadius: 0.005
         )
         
-        var material = PhysicallyBasedMaterial()
-        material.baseColor = .init(tint: color)
-        material.roughness = .init(floatLiteral: 0.8) // matte
-        material.metallic = .init(floatLiteral: 0.0)
+        let cardFace = CardFaceView(label: label, color: color)
         
-        let card  = ModelEntity(mesh: mesh, materials: [material])
+        // render text at resoultion matching card proportions
+        let renderer = ImageRenderer(content: cardFace)
+        renderer.scale = 3.0
+        renderer.proposedSize = .init(width:200, height:300)
+        
+        // convert to texture
+        if let uiImage = renderer.uiImage,
+           let cgImage = uiImage.cgImage,
+           let texture = try? TextureResource(image: cgImage, options: .init(semantic: .color)){
+            
+            var material = UnlitMaterial()
+            material.color = .init(texture: .init(texture))
+            
+            let card = ModelEntity(mesh: mesh, materials: [material])
+            card.generateCollisionShapes(recursive: false)
+            card.components.set(InputTargetComponent())
+            return card
+        }
+        
+        // standard color card if texture fails
+        var fallbackMaterial = PhysicallyBasedMaterial()
+        fallbackMaterial.baseColor = .init(tint: color)
+        fallbackMaterial.roughness = .init(floatLiteral: 0.8) // matte
+        fallbackMaterial.metallic = .init(floatLiteral: 0.0)
+        
+        let card  = ModelEntity(mesh: mesh, materials: [fallbackMaterial])
         
         // for gesture handling
         card.generateCollisionShapes(recursive: false)
@@ -133,6 +156,32 @@ struct ImmersiveView: View {
         card.components.set(InputTargetComponent())
         
         return card
+    }
+    
+    struct CardFaceView : View {
+        let label: String
+        let color: UIColor
+        
+        var body: some View {
+            ZStack {
+                // Card background
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(color))
+                
+                // small border
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                
+                // label text
+                Text(label)
+                    .font(.headline)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundColor(.black)
+                    .multilineTextAlignment(.center)
+                    .padding(12)
+            }
+            .frame(width:200, height: 300)
+        }
     }
 }
 

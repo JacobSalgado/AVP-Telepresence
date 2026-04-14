@@ -12,9 +12,11 @@ struct CollabActivity : GroupActivity {
     
     var metadata : GroupActivityMetadata {
         var meta = GroupActivityMetadata()
-        meta.title = "Collaboration Activity"
-        meta.subtitle = "Join my spatial session"
+        meta.title = "Collaboration AVP Activity"
+        meta.subtitle = "Join my card sorting spatial session"
         meta.type = .generic
         return meta
     }
+    
+    static var supportGroupImmersiveSpace: Bool { true }
 }
