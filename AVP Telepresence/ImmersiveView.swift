@@ -12,7 +12,8 @@ import AVFoundation
 
 struct ImmersiveView: View {
     
-    @State private var cardEntity: ModelEntity? = nil
+    //@State private var cardEntity: ModelEntity? = nil
+    @State private var cards: [cardModel] = []
 
     var body: some View {
         RealityView { content in
@@ -25,7 +26,20 @@ struct ImmersiveView: View {
                 
                 content.add(skyBox)
                 
-                let card = makeCard (
+                let cardLabels = ["Navigation", "Search", "Profile", "Settings", "Help"]
+                
+                for (index, label) in cardLabels.enumerated() {
+                    let card = makeCard(width: 0.1, height: 0.15, depth: 0.002, label: label, color: .white)
+                    // spreads cards in a row
+                    card.position = SIMD3(x: Float(index) * 0.15 - 0.3, y: 1.5, z: -0.6)
+                    content.add(card)
+                    
+                    // stores the card entity and metadata together
+                    let cardEntity = cardModel(label: label, position: card.position, entity: card)
+                    cards.append(cardEntity)
+                }
+                
+                /*let card = makeCard (
                     width: 0.1,   // ~10cm wide
                     height: 0.15, // ~15cm tall
                     depth: 0.002, // ~2mm thick
@@ -37,7 +51,7 @@ struct ImmersiveView: View {
                 card.position = SIMD3(x: 0, y: 1.5, z: 0)
                 
                 content.add(card)
-                cardEntity = card
+                cardEntity = card*/
             }
         }
         /*update: { content in
@@ -48,11 +62,21 @@ struct ImmersiveView: View {
                 .targetedToAnyEntity()
                 .onChanged{ value in
                     // move card
-                    cardEntity?.position = value.convert (
+                    /*cardEntity?.position = value.convert (
                         value.gestureValue.location3D,
                         from: .local,
                         to: .scene
-                    )
+                    )*/
+                    if let index = cards.firstIndex(where: { card in card.entity == value.entity }) {
+                        let newPosition = value.convert(
+                            value.gestureValue.location3D,
+                            from: .local,
+                            to: .scene
+                        )
+                        // update both RealityKit entity and data model
+                        cards[index].entity?.position = newPosition
+                        cards[index].position = newPosition
+                    }
                 }
         )
     }
@@ -113,7 +137,7 @@ struct ImmersiveView: View {
     
     func makeCard(width: Float, height: Float, depth: Float, label: String, color: UIColor) -> ModelEntity {
         
-        let mesh = MeshResource.generateBox(
+        let bodyMesh = MeshResource.generateBox(
             width: width,
             height: height,
             depth: depth,
@@ -135,10 +159,11 @@ struct ImmersiveView: View {
             var material = UnlitMaterial()
             material.color = .init(texture: .init(texture))
             
-            let card = ModelEntity(mesh: mesh, materials: [material])
-            card.generateCollisionShapes(recursive: false)
-            card.components.set(InputTargetComponent())
-            return card
+            // collision and inputs
+            let cardBody = ModelEntity(mesh: bodyMesh, materials: [material])
+            cardBody.generateCollisionShapes(recursive: false)
+            cardBody.components.set(InputTargetComponent())
+            return cardBody
         }
         
         // standard color card if texture fails
@@ -147,15 +172,24 @@ struct ImmersiveView: View {
         fallbackMaterial.roughness = .init(floatLiteral: 0.8) // matte
         fallbackMaterial.metallic = .init(floatLiteral: 0.0)
         
-        let card  = ModelEntity(mesh: mesh, materials: [fallbackMaterial])
+        let cardBody  = ModelEntity(mesh: bodyMesh, materials: [fallbackMaterial])
         
         // for gesture handling
-        card.generateCollisionShapes(recursive: false)
+        cardBody.generateCollisionShapes(recursive: false)
         
         // enable input (pinch gestures, etc.)
-        card.components.set(InputTargetComponent())
+        cardBody.components.set(InputTargetComponent())
         
-        return card
+        return cardBody
+    }
+    
+    // struct of each card
+    struct cardModel: Identifiable {
+        let id: UUID = UUID()
+        var label: String
+        var position: SIMD3<Float>
+        var isSelected: Bool = false
+        var entity: ModelEntity? = nil
     }
     
     struct CardFaceView : View {
