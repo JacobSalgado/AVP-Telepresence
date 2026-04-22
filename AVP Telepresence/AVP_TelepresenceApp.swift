@@ -23,6 +23,7 @@ struct AVP_TelepresenceApp: App {
                 .task {
                     // loop catches sessions initiated by either user
                     for await session in CollabActivity.sessions() {
+                        sessionManager.appModel = appModel
                         sessionManager.configureSession(session)
                     }
                 }

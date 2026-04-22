@@ -13,6 +13,7 @@ import Foundation
 
 @Observable
 class SessionManager {
+    var appModel: AppModel?
     var session: GroupSession<CollabActivity>?
     var messenger : GroupSessionMessenger?
     var participants: Set<Participant> = []
@@ -67,7 +68,11 @@ class SessionManager {
         switch message {
         case .objectMoved(let id, let transform):
             // reality kit updates
-            break
+            appModel?.cards[id]?.transform = transform
+        case .cardGrouped(let cardID, let groupID):
+            appModel?.cardGroups[groupID, default: []].insert(cardID)
+        case .groupLabelled(let groupID, let label):
+            appModel?.groupLabels[groupID] = label
         }
     }
 }
@@ -104,9 +109,11 @@ struct CodableTransform: Codable {
 // message type
 enum SceneMessage: Codable {
     case objectMoved(id: UUID, transform: CodableTransform)
+    case cardGrouped(cardID: UUID, groupID: UUID)
+    case groupLabelled(groupID: UUID, label: String)
     
     private enum CodingKeys: String, CodingKey {
-        case type, id, transform
+        case type, id, transform, cardID, groupID, label
     }
     
     func encode(to encoder: Encoder) throws {
@@ -116,6 +123,14 @@ enum SceneMessage: Codable {
             try container.encode("objectMoved", forKey: .type)
             try container.encode(id,            forKey: .id)
             try container.encode(transform,     forKey: .transform)
+        case .cardGrouped(let cardID, let groupID):
+            try container.encode("cardGrouped", forKey: .type)
+            try container.encode(cardID,        forKey: .cardID)
+            try container.encode(groupID,       forKey: .groupID)
+        case .groupLabelled(let groupID, let label):
+            try container.encode("groupLabelled", forKey: .type)
+            try container.encode(groupID,         forKey: .groupID)
+            try container.encode(label,           forKey: .label)
         }
     }
     
@@ -127,6 +142,14 @@ enum SceneMessage: Codable {
             let id        = try container.decode(UUID.self,             forKey: .id)
             let transform = try container.decode(CodableTransform.self, forKey: .transform)
             self = .objectMoved(id: id, transform: transform)
+        case "cardGrouped":
+            let cardID = try container.decode(UUID.self, forKey: .cardID)
+            let groupID = try container.decode(UUID.self, forKey: .groupID)
+            self = .cardGrouped(cardID: cardID, groupID: groupID)
+        case "groupLabelled":
+            let groupID = try container.decode(UUID.self, forKey: .groupID)
+            let label = try container.decode(String.self, forKey: .label)
+            self = .groupLabelled(groupID: groupID, label: label)
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,

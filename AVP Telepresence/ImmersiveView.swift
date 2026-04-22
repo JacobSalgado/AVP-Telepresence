@@ -12,8 +12,10 @@ import AVFoundation
 
 struct ImmersiveView: View {
     
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionManager.self) private var sessionManager
+    
     //@State private var cardEntity: ModelEntity? = nil
-    @State private var cards: [cardModel] = []
 
     var body: some View {
         RealityView { content in
@@ -23,60 +25,66 @@ struct ImmersiveView: View {
 
                 // Skybox Implementation
                 guard let skyBox = generateSkyBox() else { return }
-                
                 content.add(skyBox)
                 
+                // cards from AppModel data
                 let cardLabels = ["Navigation", "Search", "Profile", "Settings", "Help"]
-                
                 for (index, label) in cardLabels.enumerated() {
-                    let card = makeCard(width: 0.1, height: 0.15, depth: 0.002, label: label, color: .white)
+                    let id = UUID()
+                    let card = makeCard(
+                        width: 0.1,
+                        height: 0.15,
+                        depth: 0.002,
+                        label: label,
+                        color: .white
+                    )
                     // spreads cards in a row
                     card.position = SIMD3(x: Float(index) * 0.15 - 0.3, y: 1.5, z: -0.6)
                     content.add(card)
                     
                     // stores the card entity and metadata together
-                    let cardEntity = cardModel(label: label, position: card.position, entity: card)
-                    cards.append(cardEntity)
+                    let model = CardModel(
+                        id: id,
+                        label: label,
+                        transform: CodableTransform(card.transform.matrix)
+                    )
+                    
+                    await MainActor.run {
+                        appModel.cards[id] = model
+                        appModel.cardEntities[id] = card
+                    }
                 }
-                
-                /*let card = makeCard (
-                    width: 0.1,   // ~10cm wide
-                    height: 0.15, // ~15cm tall
-                    depth: 0.002, // ~2mm thick
-                    label: "Test card",
-                    color: .red
-                )
-                
-                // card at eye level
-                card.position = SIMD3(x: 0, y: 1.5, z: 0)
-                
-                content.add(card)
-                cardEntity = card*/
+            }
+        } update: { content in
+            // fill code here for Swiftui changes
+            // called whenever AppModel Changes
+            // Applies any incoming remote updates to local entities
+            for (id, cardModel) in appModel.cards {
+                appModel.cardEntities[id]?.transform.matrix = cardModel.transform.matrix
             }
         }
-        /*update: { content in
-            // fill code here for Swiftui changes
-        }*/
         .gesture(
             DragGesture()
                 .targetedToAnyEntity()
                 .onChanged{ value in
                     // move card
-                    /*cardEntity?.position = value.convert (
+                    guard let entity = value.entity as? ModelEntity,
+                          let cardID = appModel.cardEntities.first(where: {$0.value == entity})?.key
+                    else {return}
+                    
+                    let newPosition = value.convert(
                         value.gestureValue.location3D,
                         from: .local,
                         to: .scene
-                    )*/
-                    if let index = cards.firstIndex(where: { card in card.entity == value.entity }) {
-                        let newPosition = value.convert(
-                            value.gestureValue.location3D,
-                            from: .local,
-                            to: .scene
-                        )
-                        // update both RealityKit entity and data model
-                        cards[index].entity?.position = newPosition
-                        cards[index].position = newPosition
-                    }
+                    )
+                    entity.position = newPosition
+                    
+                    // this updates AppModel and broadcast in one step
+                    appModel.cards[cardID]?.transform = CodableTransform(entity.transform.matrix)
+                    sessionManager.send(.objectMoved(
+                        id: cardID,
+                        transform: CodableTransform(entity.transform.matrix)
+                    ))
                 }
         )
     }
@@ -106,6 +114,7 @@ struct ImmersiveView: View {
         return videoMaterial
     }
     
+    /* Skybox creation */
     func generateSkyBox() -> Entity?
     {
         /*
@@ -135,6 +144,7 @@ struct ImmersiveView: View {
         return skyBoxEntity
     }
     
+    /* Function for creating a brand new card */
     func makeCard(width: Float, height: Float, depth: Float, label: String, color: UIColor) -> ModelEntity {
         
         let bodyMesh = MeshResource.generateBox(
@@ -183,15 +193,7 @@ struct ImmersiveView: View {
         return cardBody
     }
     
-    // struct of each card
-    struct cardModel: Identifiable {
-        let id: UUID = UUID()
-        var label: String
-        var position: SIMD3<Float>
-        var isSelected: Bool = false
-        var entity: ModelEntity? = nil
-    }
-    
+    /* Card Facing view */
     struct CardFaceView : View {
         let label: String
         let color: UIColor
@@ -222,4 +224,5 @@ struct ImmersiveView: View {
 #Preview(immersionStyle: .full) {
     ImmersiveView()
         .environment(AppModel())
+        .environment(SessionManager())
 }
