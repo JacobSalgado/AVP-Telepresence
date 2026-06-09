@@ -27,6 +27,16 @@ struct ImmersiveView: View {
                 guard let skyBox = generateSkyBox() else { return }
                 content.add(skyBox)
                 
+                // Spawn category zones
+                let categoryNames = ["Category 1", "Category 2", "Category 3", "Unsorted"]
+                for (index, name) in categoryNames.enumerated() {
+                    let zone = makeCategoryZone(label: name, index: index)
+                    content.add(zone)
+                    await MainActor.run {
+                        appModel.categoryZones[name] = zone
+                    }
+                }
+                
                 // cards from AppModel data
                 let cardLabels = ["Navigation", "Search", "Profile", "Settings", "Help"]
                 for (index, label) in cardLabels.enumerated() {
@@ -39,7 +49,10 @@ struct ImmersiveView: View {
                         color: .white
                     )
                     // spreads cards in a row
-                    card.position = SIMD3(x: Float(index) * 0.15 - 0.3, y: 1.5, z: -0.6)
+                    card.position = SIMD3(
+                        x: Float(index) * 0.15 - 0.3,
+                        y: 1.5,
+                        z: -0.6)
                     content.add(card)
                     
                     // stores the card entity and metadata together
@@ -81,10 +94,31 @@ struct ImmersiveView: View {
                     
                     // this updates AppModel and broadcast in one step
                     appModel.cards[cardID]?.transform = CodableTransform(entity.transform.matrix)
+                    
+                    // highlight which zone the card is hovering over
+                    appModel.highlightedZone = nearestZone(to: newPosition)
+                    
                     sessionManager.send(.objectMoved(
                         id: cardID,
                         transform: CodableTransform(entity.transform.matrix)
                     ))
+                }
+                .onEnded { value in
+                    guard let entity = value.entity as? ModelEntity,
+                          let cardID = appModel.cardEntities.first(where: { $0.value == entity })?.key
+                    else {return}
+                    
+                    let position = value.convert(
+                        value.gestureValue.location3D,
+                        from: .local,
+                        to: .scene
+                    )
+                    
+                    // check if dropped into the zone
+                    if let zoneName = nearestZone(to: position) {
+                        snapCard(entity: entity, cardID: cardID, toZone: zoneName)
+                    }
+                    appModel.highlightedZone = nil
                 }
         )
     }
@@ -193,6 +227,183 @@ struct ImmersiveView: View {
         return cardBody
     }
     
+    /**
+     *  @brief positions cards within the category
+     */
+    func makeCategoryZone(label: String, index: Int) -> Entity {
+        let zoneRoot = Entity()
+
+        // Position zones in a row on a virtual table surface
+        zoneRoot.position = SIMD3(
+            x: Float(index) * 0.38 - 0.57,
+            y: 1.2,
+            z: -0.7
+        )
+
+        // ── Distinct color per zone ──────────────────────────────────────
+        let zoneColors: [UIColor] = [
+            UIColor(red: 0.35, green: 0.60, blue: 0.95, alpha: 0.6),  // blue
+            UIColor(red: 0.35, green: 0.80, blue: 0.55, alpha: 0.6),  // green
+            UIColor(red: 0.95, green: 0.65, blue: 0.25, alpha: 0.6),  // amber
+            UIColor(red: 0.75, green: 0.40, blue: 0.90, alpha: 0.6),  // purple
+        ]
+        let color = zoneColors[index % zoneColors.count]
+
+        // ── Box walls ────────────────────────────────────────────────────
+        // Box is 28cm wide, 8cm tall, 22cm deep
+        // Built from 5 thin panels: bottom, front, back, left, right (open top)
+        let boxWidth:  Float = 0.28
+        let boxHeight: Float = 0.08
+        let boxDepth:  Float = 0.22
+        let thickness: Float = 0.004
+
+        let panels: [(width: Float, height: Float, depth: Float, x: Float, y: Float, z: Float)] = [
+            // Bottom
+            (boxWidth, thickness, boxDepth, 0, 0, 0),
+            // Front wall
+            (boxWidth, boxHeight, thickness, 0, boxHeight / 2, boxDepth / 2),
+            // Back wall
+            (boxWidth, boxHeight, thickness, 0, boxHeight / 2, -boxDepth / 2),
+            // Left wall
+            (thickness, boxHeight, boxDepth, -boxWidth / 2, boxHeight / 2, 0),
+            // Right wall
+            (thickness, boxHeight, boxDepth, boxWidth / 2, boxHeight / 2, 0),
+        ]
+
+        for panel in panels {
+            let mesh = MeshResource.generateBox(
+                width: panel.width,
+                height: panel.height,
+                depth: panel.depth,
+                cornerRadius: 0.002
+            )
+            var mat = PhysicallyBasedMaterial()
+            mat.baseColor = .init(tint: color)
+            mat.roughness = .init(floatLiteral: 0.8)
+            mat.metallic  = .init(floatLiteral: 0.0)
+
+            let panelEntity = ModelEntity(mesh: mesh, materials: [mat])
+            panelEntity.position = SIMD3(x: panel.x, y: panel.y, z: panel.z)
+            panelEntity.name = "zone_panel_\(label)"
+            zoneRoot.addChild(panelEntity)
+        }
+
+        // ── Label floating above the box ─────────────────────────────────
+        let labelMesh = MeshResource.generatePlane(
+            width: boxWidth - 0.02,
+            height: 0.05,
+            cornerRadius: 0.008
+        )
+
+        let labelView = ZoneLabelView(label: label, color: color)
+        let renderer  = ImageRenderer(content: labelView)
+        renderer.scale = 3.0
+        renderer.proposedSize = .init(width: 300, height: 60)
+
+        if let uiImage = renderer.uiImage,
+           let cgImage = uiImage.cgImage,
+           let texture = try? TextureResource(image: cgImage, options: .init(semantic: .color)) {
+            var labelMat = UnlitMaterial()
+            labelMat.color = .init(texture: .init(texture))
+            let labelEntity = ModelEntity(mesh: labelMesh, materials: [labelMat])
+            // Float label just above the box opening
+            labelEntity.position = SIMD3(x: 0, y: boxHeight + 0.04, z: 0)
+            labelEntity.orientation = simd_quatf(angle: -.pi / 5, axis: SIMD3(1, 0, 0))
+            zoneRoot.addChild(labelEntity)
+        }
+
+        return zoneRoot
+    }
+    
+    /**
+     * @brief highlights the zone card will go in
+     */
+    func updateZoneHighlight(zone: Entity, highlighted: Bool) {
+        for child in zone.children {
+            guard child.name.hasPrefix("zone_panel_"),
+                  let panel = child as? ModelEntity
+            else { continue }
+
+            var mat = PhysicallyBasedMaterial()
+            mat.baseColor = .init(tint: highlighted
+                ? UIColor.white.withAlphaComponent(0.9)   // flash white on hover
+                : (panel.model?.materials.first as? PhysicallyBasedMaterial)?
+                    .baseColor.tint ?? UIColor.systemGray5
+            )
+            mat.roughness = .init(floatLiteral: 0.8)
+            panel.model?.materials = [mat]
+        }
+    }
+    
+    /**
+     * @ brief proximity direction
+     * @return name of the nearest zone if within snap distance, else nil
+     */
+    func nearestZone(to position: SIMD3<Float>) -> String? {
+        let snapDistance: Float = 0.18
+        
+        var nearest: String? = nil
+        var nearestDist: Float = snapDistance
+        
+        for (name, zone) in appModel.categoryZones {
+            // only compare XZ distance - zones are on a flat surface
+            let zonePos = zone.position
+            let dx = position.x - zonePos.x
+            let dz = position.z - zonePos.z
+            let dist = sqrt(dx * dx + dz * dz)
+            
+            if dist < nearestDist {
+                nearestDist = dist
+                nearest = name
+            }
+        }
+        return nearest
+    }
+    
+    /**
+     * @brief snaps card to the category zone
+     */
+    func snapCard(entity: ModelEntity, cardID: UUID, toZone zoneName: String) {
+        guard let zone = appModel.categoryZones[zoneName] else {return}
+        
+        // count how many cards are already in this zone for offset
+        let existingCount = appModel.cards.values
+            .filter { $0.groupID == UUID(uuidString: zoneName)}
+            .count
+        
+        // stack cards with slight offset so they don't overlap
+        let offsetX = Float(existingCount % 4) * 0.075 - 0.1
+        let offsetZ = Float(existingCount / 4) * 0.075
+        
+        let snapPosition = SIMD3<Float>(
+            zone.position.x + offsetX,
+            zone.position.y + 0.08, // sit just above the plate surface
+            zone.position.z + offsetZ
+        )
+        
+        // smooth snap animation
+        entity.move(
+            to: Transform(
+                scale: .one,
+                rotation: simd_quatf(angle: -.pi / 2, axis: SIMD3(1,0,0)), // lay flat
+                translation: snapPosition
+            ),
+            relativeTo: nil,
+            duration: 0.25
+        )
+        
+        // update AppModel
+        appModel.cards[cardID]?.transform = CodableTransform(entity.transform.matrix)
+        appModel.cards[cardID]?.groupID = UUID(uuidString: zoneName)
+        
+        // broadcast to other headset
+        sessionManager.send(.objectMoved(
+            id: cardID,
+            transform: CodableTransform(entity.transform.matrix)
+        ))
+    }
+    
+    
     /* Card Facing view */
     struct CardFaceView : View {
         let label: String
@@ -217,6 +428,26 @@ struct ImmersiveView: View {
                     .padding(12)
             }
             .frame(width:200, height: 300)
+        }
+    }
+    
+    struct ZoneLabelView: View {
+        let label: String
+        let color: UIColor
+        
+        var body: some View {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(color).opacity(0.85))
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(color), lineWidth: 2)
+                Text(label)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .shadow(color: .black.opacity(0.3), radius: 1)
+            }
+            .frame(width:300, height: 60)
         }
     }
 }

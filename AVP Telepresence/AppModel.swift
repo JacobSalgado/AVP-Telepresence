@@ -28,6 +28,8 @@ class AppModel {
     
     var cardEntities: [UUID: ModelEntity] = [:]
     
+    var categoryZones: [String: Entity] = [:]
+    var highlightedZone: String? = nil
 }
 
 // struct of each card
