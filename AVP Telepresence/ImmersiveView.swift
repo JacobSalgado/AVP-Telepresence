@@ -15,6 +15,8 @@ struct ImmersiveView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionManager.self) private var sessionManager
     
+    @State private var handTracker = HandTrackingManager()
+    
     //@State private var cardEntity: ModelEntity? = nil
 
     var body: some View {
@@ -26,6 +28,12 @@ struct ImmersiveView: View {
                 // Skybox Implementation
                 guard let skyBox = generateSkyBox() else { return }
                 content.add(skyBox)
+                
+                let anchor = Entity()
+                content.add(anchor)
+                await MainActor.run {
+                    appModel.reactionAnchor = anchor
+                }
                 
                 // Spawn category zones
                 let categoryNames = ["Category 1", "Category 2", "Category 3", "Unsorted"]
@@ -75,6 +83,12 @@ struct ImmersiveView: View {
             for (id, cardModel) in appModel.cards {
                 appModel.cardEntities[id]?.transform.matrix = cardModel.transform.matrix
             }
+            
+            // spawn remote reaction if one arrived
+            if let reaction = appModel.pendingReaction {
+                spawnReaction(gesture: reaction.gesture, at: reaction.position)
+                appModel.pendingReaction = nil // clear after consuming
+            }
         }
         .gesture(
             DragGesture()
@@ -121,6 +135,19 @@ struct ImmersiveView: View {
                     appModel.highlightedZone = nil
                 }
         )
+        .task {
+            handTracker.onGestureDetected = { gesture, position in
+                spawnReaction(gesture: gesture, at: position)
+                // broadcast so the other headset sees it too
+                sessionManager.send(.reactionFired(
+                    gesture: gesture,
+                    position: CodableTransform(
+                        Transform(translation: position).matrix
+                    )
+                ))
+            }
+            await handTracker.start()
+        }
     }
     // Returns a VideoMaterial
     func generateVideoMaterial() -> VideoMaterial? {
@@ -403,6 +430,50 @@ struct ImmersiveView: View {
         ))
     }
     
+    /**
+     * @brief spawns the emoji entity
+     */
+    func spawnReaction(gesture: ReactionGesture, at position: SIMD3<Float>) {
+        let labelView = ReactionView(emoji: gesture.emoji)
+        let renderer = ImageRenderer(content: labelView)
+        renderer.scale = 3.0
+        renderer.proposedSize = .init(width: 120, height: 120)
+        
+        guard let uiImage = renderer.uiImage,
+              let cgImage = uiImage.cgImage,
+              let texture = try? TextureResource(
+                image: cgImage, options: .init(semantic: .color))
+        else {return}
+        
+        var mat = UnlitMaterial()
+        mat.color = .init(texture: .init(texture))
+        
+        let mesh = MeshResource.generatePlane(width: 0.12, height: 0.12, cornerRadius: 0.06)
+        let entity = ModelEntity(mesh: mesh, materials: [mat])
+        
+        // spawn just above the hand
+        entity.position = position + SIMD3(0, 0.15, 0)
+        
+        // billboard - always face the user
+        entity.components.set(BillboardComponent())
+        
+        // add to scene
+        // access content via AppModel root entity or a dedicated reactions anchor
+        appModel.reactionAnchor?.addChild(entity)
+        
+        // animate: float up and fade out over 1.5 seconds
+        Task {
+            try? await Task.sleep(for: .seconds(0.1))
+            entity.move(
+                to: Transform(translation: entity.position + SIMD3(0,0.2,0)),
+                relativeTo: nil,
+                duration: 1.5
+            )
+            try? await Task.sleep(for: .seconds(1.5))
+            entity.removeFromParent()
+        }
+    }
+    
     
     /* Card Facing view */
     struct CardFaceView : View {
@@ -448,6 +519,15 @@ struct ImmersiveView: View {
                     .shadow(color: .black.opacity(0.3), radius: 1)
             }
             .frame(width:300, height: 60)
+        }
+    }
+    
+    struct ReactionView: View {
+        let emoji: String
+        var body: some View {
+            Text(emoji)
+                .font(.system(size: 72))
+                .frame(width: 120, height: 120)
         }
     }
 }

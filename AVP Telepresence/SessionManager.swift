@@ -73,6 +73,8 @@ class SessionManager {
             appModel?.cardGroups[groupID, default: []].insert(cardID)
         case .groupLabelled(let groupID, let label):
             appModel?.groupLabels[groupID] = label
+        case .reactionFired(let gesture, let position):
+            appModel?.pendingReaction = (gesture, position.matrix.columns.3.xyz)
         }
     }
 }
@@ -111,6 +113,7 @@ enum SceneMessage: Codable {
     case objectMoved(id: UUID, transform: CodableTransform)
     case cardGrouped(cardID: UUID, groupID: UUID)
     case groupLabelled(groupID: UUID, label: String)
+    case reactionFired(gesture: ReactionGesture, position: CodableTransform)
     
     private enum CodingKeys: String, CodingKey {
         case type, id, transform, cardID, groupID, label
@@ -131,6 +134,10 @@ enum SceneMessage: Codable {
             try container.encode("groupLabelled", forKey: .type)
             try container.encode(groupID,         forKey: .groupID)
             try container.encode(label,           forKey: .label)
+        case .reactionFired(let gesture, let position):
+            try container.encode("reactionFired", forKey: .type)
+            try container.encode(gesture.rawValue, forKey: .label)
+            try container.encode(position, forKey: .transform)
         }
     }
     
@@ -150,6 +157,11 @@ enum SceneMessage: Codable {
             let groupID = try container.decode(UUID.self, forKey: .groupID)
             let label = try container.decode(String.self, forKey: .label)
             self = .groupLabelled(groupID: groupID, label: label)
+        case "reactionFired":
+            let raw = try container.decode(String.self, forKey: .label)
+            let position = try container.decode(CodableTransform.self, forKey: .transform)
+            let gesture = ReactionGesture(rawValue: raw) ?? .thumbsUp
+            self = .reactionFired(gesture: gesture, position: position)
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,

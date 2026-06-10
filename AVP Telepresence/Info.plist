@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSWorldSensingUsageDescription</key>
+	<string>World sensing is required for spatial hand tracking</string>
+	<key>NSHandsTrackingUsageDescription</key>
+	<string>Hand tracking is used to detect reaction gestures during the card sorting session</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationPreferredDefaultSceneSessionRole</key>
@@ -15,6 +19,19 @@
 				<dict>
 					<key>UISceneInitialImmersionStyle</key>
 					<string>UIImmersionStyleFull</string>
+				</dict>
+			</array>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string></string>
+					<key>UISceneDelegateClassName</key>
+					<string></string>
+					<key>UISceneConfigurationName</key>
+					<string></string>
+					<key>UISceneStoryboardFile</key>
+					<string></string>
 				</dict>
 			</array>
 		</dict>

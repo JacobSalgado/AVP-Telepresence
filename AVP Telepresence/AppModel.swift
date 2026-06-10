@@ -30,6 +30,10 @@ class AppModel {
     
     var categoryZones: [String: Entity] = [:]
     var highlightedZone: String? = nil
+    
+    var reactionAnchor: Entity? = nil
+    
+    var pendingReaction: (gesture: ReactionGesture, position: SIMD3<Float>)? = nil
 }
 
 // struct of each card
