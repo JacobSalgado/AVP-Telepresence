@@ -127,7 +127,7 @@ struct ImmersiveView: View {
         // URL that points to the video file. guard statement
         // is used to locate the URL of the video file at the
         // app's main bundle
-        guard let url = Bundle.main.url(forResource: "createwithswift.com-tutorial-create-an-immersive-experience-with-a-360-degree-video-in-visionos-video-asset", withExtension: "mp4")
+        guard let url = Bundle.main.url(forResource: "test3", withExtension: "mp4")
         else
         {
             print("Error loading video")
@@ -148,6 +148,20 @@ struct ImmersiveView: View {
         return videoMaterial
     }
     
+    /* Test Function */
+    func generateImageMaterial() -> UnlitMaterial? {
+        guard let texture = try? TextureResource.load(
+            named: "dam_road.jpg"
+        ) else {
+            print("Failed to load panorama")
+            return nil
+        }
+        var material = UnlitMaterial()
+        material.color = .init(texture: .init(texture))
+        
+        return material
+    }
+    
     /* Skybox creation */
     func generateSkyBox() -> Entity?
     {
@@ -161,16 +175,22 @@ struct ImmersiveView: View {
         /*
         make skybox dynamic, video material
          */
-        guard let videoMaterial = generateVideoMaterial()
+        /*guard let videoMaterial = generateVideoMaterial()
         else
         {
             return nil
-        }
+        }*/
+        guard let imageMaterial = generateImageMaterial()
+        else { return nil }
         
         /*
         Entity is constructed by combining the previously generated spherical mesh and the video material
          */
-        let skyBoxEntity = ModelEntity(mesh: skyBoxMesh, materials: [videoMaterial])
+        /*let skyBoxEntity = ModelEntity(mesh: skyBoxMesh, materials: [videoMaterial])*/
+        let skyBoxEntity = ModelEntity(
+            mesh: skyBoxMesh,
+            materials: [imageMaterial]
+        )
         
         // Get skybox to appear correctly in scene
         skyBoxEntity.scale *= .init(x: -1, y: 1, z: 1)
