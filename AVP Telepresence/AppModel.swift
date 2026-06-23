@@ -13,7 +13,7 @@ import Foundation
 @MainActor
 @Observable
 class AppModel {
-    let immersiveSpaceID = "ImmersiveSpace"
+    let immersiveSpaceID = "VideoImmersiveView"
     enum ImmersiveSpaceState {
         case closed
         case inTransition

@@ -46,7 +46,7 @@ struct AVP_TelepresenceApp: App {
         }
         
         // 360 DEGREE VIDEO
-        ImmersiveSpace(id: "VideoImmersiveView") {
+        ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveView()
                 .environment(appModel)
                 .environment(sessionManager)

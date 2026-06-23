@@ -66,6 +66,13 @@ struct ImmersiveView: View {
                         appModel.cards[id] = model
                         appModel.cardEntities[id] = card
                     }
+                    
+                    if let mars = try? await Entity(named: "Mars") {
+                        mars.generateCollisionShapes(recursive: true)
+                        mars.components.set(InputTargetComponent())
+                        
+                        content.add(mars)
+                    }
                 }
             }
         } update: { content in
@@ -91,6 +98,16 @@ struct ImmersiveView: View {
                         to: .scene
                     )
                     entity.position = newPosition
+                    
+                    let testEntity = value.entity
+                    
+                    let testNewPosition = value.convert(
+                        value.gestureValue.location3D,
+                        from: .local,
+                        to: .scene
+                    )
+                    testEntity.position = newPosition
+                    
                     
                     // this updates AppModel and broadcast in one step
                     appModel.cards[cardID]?.transform = CodableTransform(entity.transform.matrix)
@@ -121,6 +138,23 @@ struct ImmersiveView: View {
                     appModel.highlightedZone = nil
                 }
         )
+        .simultaneousGesture(
+            RotateGesture3D()
+                .targetedToAnyEntity()
+                .onChanged { value in
+                    let entity = value.entity
+                    entity.orientation = simd_quatf(value.rotation) * entity.orientation
+                }
+        )
+        .simultaneousGesture(
+            MagnifyGesture()
+                .targetedToAnyEntity()
+                .onChanged { value in
+                    let entity = value.entity
+                    
+                    entity.scale = .one * Float(value.magnification)
+                }
+            )
     }
     // Returns a VideoMaterial
     func generateVideoMaterial() -> VideoMaterial? {

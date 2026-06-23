@@ -17,6 +17,9 @@ class SessionManager {
     var session: GroupSession<CollabActivity>?
     var messenger : GroupSessionMessenger?
     var participants: Set<Participant> = []
+    var shouldBeImmersed: Bool = false
+    
+    var activationState: String = "Idle"
     
     private var subscriptions = Set<AnyCancellable>()
     private var tasks = Set<Task<Void, Never>>()
@@ -37,9 +40,11 @@ class SessionManager {
             
             // put participants across from each other
             // alt. options: .none, .sidebyside, .surround
-            config.spatialTemplatePreference = .none
+            config.spatialTemplatePreference = .conversational
             
             coordinator.configuration = config
+            
+            //
         }
         
         // track all the participants
@@ -56,6 +61,44 @@ class SessionManager {
         tasks.insert(receiveTask)
         session.join()
     }
+    
+    func startSharePlay() {
+        Task {
+            activationState = "preparing..."
+            let activity = CollabActivity()
+            
+            let prep = await activity.prepareForActivation()
+            
+            switch prep {
+            case .activationPreferred:
+                activationState = "activating..."
+                do {
+                    let result = try await activity.activate()
+                    activationState = "activated: \(result)"
+                } catch {
+                    activationState = "activate() threw: \(error)"
+                }
+            case .activationDisabled:
+                activationState = "Disabled - not eligible right now"
+            case .cancelled:
+                activationState = "cancelled"
+            @unknown default:
+                activationState = "unknown case"
+                break
+            }
+        }
+    }
+    
+    func requestImmersion(){
+        send(.enterImmersiveSpace)
+        shouldBeImmersed = true;
+    }
+    
+    func requestExitImmersion(){
+        send(.exitImmersiveSpace)
+        shouldBeImmersed = false;
+    }
+    
     func send(_ message: SceneMessage){
         Task{
             try? await messenger?.send(message)
@@ -73,6 +116,10 @@ class SessionManager {
             appModel?.cardGroups[groupID, default: []].insert(cardID)
         case .groupLabelled(let groupID, let label):
             appModel?.groupLabels[groupID] = label
+        case .enterImmersiveSpace:
+            shouldBeImmersed = true
+        case .exitImmersiveSpace:
+            shouldBeImmersed = false
         }
     }
 }
@@ -111,6 +158,8 @@ enum SceneMessage: Codable {
     case objectMoved(id: UUID, transform: CodableTransform)
     case cardGrouped(cardID: UUID, groupID: UUID)
     case groupLabelled(groupID: UUID, label: String)
+    case enterImmersiveSpace
+    case exitImmersiveSpace
     
     private enum CodingKeys: String, CodingKey {
         case type, id, transform, cardID, groupID, label
@@ -131,6 +180,10 @@ enum SceneMessage: Codable {
             try container.encode("groupLabelled", forKey: .type)
             try container.encode(groupID,         forKey: .groupID)
             try container.encode(label,           forKey: .label)
+        case .enterImmersiveSpace:
+            try container.encode("enterImmersiveSpace", forKey: .type)
+        case .exitImmersiveSpace:
+            try container.encode("exitImmersiveSpace", forKey: .type)
         }
     }
     
@@ -150,6 +203,10 @@ enum SceneMessage: Codable {
             let groupID = try container.decode(UUID.self, forKey: .groupID)
             let label = try container.decode(String.self, forKey: .label)
             self = .groupLabelled(groupID: groupID, label: label)
+        case "enterImmersiveSpace":
+            self = .enterImmersiveSpace
+        case "exitImmersiveSpace":
+            self = .exitImmersiveSpace
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,

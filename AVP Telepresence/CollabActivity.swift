@@ -17,6 +17,4 @@ struct CollabActivity : GroupActivity {
         meta.type = .generic
         return meta
     }
-    
-    static var supportGroupImmersiveSpace: Bool { true }
 }
