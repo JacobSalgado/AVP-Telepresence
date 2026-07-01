@@ -1,0 +1,80 @@
+//
+//  WhiteboardView.swift
+//  AVP Telepresence
+//
+//  Created by Research on 7/1/26.
+//
+
+import SwiftUI
+
+struct WhiteboardStroke: Identifiable, Codable {
+    let id: UUID
+    var points: [CGPoint]
+    var lineWidth: CGFloat
+}
+
+struct WhiteboardView: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionManager.self) private var sessionManager
+    
+    @State private var currentPoints: [CGPoint] = []
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button {
+                    appModel.whiteboardStrokes.removeAll()
+                    sessionManager.send(.whiteboardCleared)
+                } label: {
+                    Label("Clear", systemImage: "trash")
+                }
+                .padding(8)
+            }
+            .background(.white.opacity(0.95))
+            
+            Canvas { context, size in
+                for stroke in appModel.whiteboardStrokes {
+                    var path = Path()
+                    path.addLines(stroke.points)
+                    context.stroke(path, with: .color(.black), lineWidth: stroke.lineWidth)
+                }
+                if currentPoints.count > 1 {
+                    var path = Path()
+                    path.addLines(currentPoints)
+                    context.stroke(path, with: .color(.black.opacity(0.6)), lineWidth: 3)
+                }
+            }
+            .frame(width: 600, height: 400)
+            .background(.white.opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        currentPoints.append(value.location)
+                    }
+                    .onEnded { _ in
+                        guard currentPoints.count > 1 else { currentPoints = []; return }
+                        let stroke = WhiteboardStroke(id: UUID(), points: currentPoints, lineWidth: 3)
+                        appModel.whiteboardStrokes.append(stroke)
+                        sessionManager.send(.whiteboardStroke(stroke))
+                        currentPoints = []
+                    }
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // Called when a stroke arrives from the other participant
+    func addRemoteStroke(_ stroke: WhiteboardStroke) {
+        appModel.whiteboardStrokes.append(stroke)
+    }
+    
+    func clearRemote() {
+        appModel.whiteboardStrokes = []
+    }
+}
+
+#Preview {
+    WhiteboardView()
+}
