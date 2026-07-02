@@ -50,7 +50,7 @@ struct WhiteboardView: View {
                     context.stroke(path, with: .color(.black.opacity(0.6)), lineWidth: 3)
                 }
             }
-            .frame(width: 600, height: 400)
+            .frame(width: boardSize, height: boardSize)
             .background(.white.opacity(0.95))
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -102,7 +102,8 @@ struct WhiteboardView: View {
                 )
                 context.draw(
                     Text("\(value)")
-                        .font(.system(size: cellSize * 0.5, weight: .semibold)),
+                        .font(.system(size: cellSize * 0.5, weight: .semibold))
+                        .foregroundColor(.black),
                     at: point
                 )
             }

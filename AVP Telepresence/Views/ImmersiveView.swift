@@ -26,7 +26,7 @@ struct ImmersiveView: View {
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
                     whiteboard.position = [0, 1.3, -1.2]
-                    whiteboard.scale = .one * 1.4
+                    whiteboard.scale = .one * 2
                     content.add(whiteboard)
                 }
 
