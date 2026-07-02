@@ -111,11 +111,8 @@ class SessionManager {
         switch message {
         case .objectMoved(let id, let transform):
             // reality kit updates
-            appModel?.cards[id]?.transform = transform
-        case .cardGrouped(let cardID, let groupID):
-            appModel?.cardGroups[groupID, default: []].insert(cardID)
-        case .groupLabelled(let groupID, let label):
-            appModel?.groupLabels[groupID] = label
+            _ = id
+            _ = transform
         case .enterImmersiveSpace:
             shouldBeImmersed = true
         case .exitImmersiveSpace:
@@ -160,8 +157,6 @@ struct CodableTransform: Codable {
 // message type
 enum SceneMessage: Codable {
     case objectMoved(id: UUID, transform: CodableTransform)
-    case cardGrouped(cardID: UUID, groupID: UUID)
-    case groupLabelled(groupID: UUID, label: String)
     case enterImmersiveSpace
     case exitImmersiveSpace
     case whiteboardStroke(WhiteboardStroke)
@@ -178,14 +173,6 @@ enum SceneMessage: Codable {
             try container.encode("objectMoved", forKey: .type)
             try container.encode(id,            forKey: .id)
             try container.encode(transform,     forKey: .transform)
-        case .cardGrouped(let cardID, let groupID):
-            try container.encode("cardGrouped", forKey: .type)
-            try container.encode(cardID,        forKey: .cardID)
-            try container.encode(groupID,       forKey: .groupID)
-        case .groupLabelled(let groupID, let label):
-            try container.encode("groupLabelled", forKey: .type)
-            try container.encode(groupID,         forKey: .groupID)
-            try container.encode(label,           forKey: .label)
         case .enterImmersiveSpace:
             try container.encode("enterImmersiveSpace", forKey: .type)
         case .exitImmersiveSpace:
@@ -206,14 +193,6 @@ enum SceneMessage: Codable {
             let id        = try container.decode(UUID.self,             forKey: .id)
             let transform = try container.decode(CodableTransform.self, forKey: .transform)
             self = .objectMoved(id: id, transform: transform)
-        case "cardGrouped":
-            let cardID = try container.decode(UUID.self, forKey: .cardID)
-            let groupID = try container.decode(UUID.self, forKey: .groupID)
-            self = .cardGrouped(cardID: cardID, groupID: groupID)
-        case "groupLabelled":
-            let groupID = try container.decode(UUID.self, forKey: .groupID)
-            let label = try container.decode(String.self, forKey: .label)
-            self = .groupLabelled(groupID: groupID, label: label)
         case "enterImmersiveSpace":
             self = .enterImmersiveSpace
         case "exitImmersiveSpace":

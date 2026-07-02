@@ -18,6 +18,9 @@ struct WhiteboardView: View {
     @Environment(SessionManager.self) private var sessionManager
     
     @State private var currentPoints: [CGPoint] = []
+    
+    private let boardSize: CGFloat = 720
+    private var cellSize: CGFloat {boardSize / 9}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +37,8 @@ struct WhiteboardView: View {
             .background(.white.opacity(0.95))
             
             Canvas { context, size in
+                drawSudokuGrid(context: context)
+                
                 for stroke in appModel.whiteboardStrokes {
                     var path = Path()
                     path.addLines(stroke.points)
@@ -47,7 +52,6 @@ struct WhiteboardView: View {
             }
             .frame(width: 600, height: 400)
             .background(.white.opacity(0.95))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
@@ -65,13 +69,44 @@ struct WhiteboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // Called when a stroke arrives from the other participant
-    func addRemoteStroke(_ stroke: WhiteboardStroke) {
-        appModel.whiteboardStrokes.append(stroke)
-    }
-    
-    func clearRemote() {
-        appModel.whiteboardStrokes = []
+    /**
+     * @brief draws the sudoku grid onto the whiteboard
+     * @param context
+     * @param size
+     */
+    private func drawSudokuGrid(context: GraphicsContext) {
+        // grid lines
+        for i in 0...9 {
+            let lineWidth: CGFloat = (i % 3 == 0) ? 3 : 1
+            let offset = CGFloat(i) * cellSize
+            
+            var vertical = Path()
+            vertical.move(to: CGPoint(x:offset, y:0))
+            vertical.addLine(to: CGPoint(x:offset, y:boardSize))
+            context.stroke(vertical, with: .color(.black), lineWidth: lineWidth)
+            
+            var horizontal = Path()
+            horizontal.move(to: CGPoint(x: 0, y: offset))
+            horizontal.addLine(to: CGPoint(x:boardSize, y:offset))
+            context.stroke(horizontal, with: .color(.black), lineWidth: lineWidth)
+        }
+        
+        // given numbers (fixed clues)
+        for row in 0..<9 {
+            for col in 0..<9 {
+                let value = SudokuPuzzle.sample[row][col]
+                guard value != 0 else { continue }
+                let point = CGPoint(
+                    x: CGFloat(col) * cellSize + cellSize / 2,
+                    y: CGFloat(row) * cellSize + cellSize / 2
+                )
+                context.draw(
+                    Text("\(value)")
+                        .font(.system(size: cellSize * 0.5, weight: .semibold)),
+                    at: point
+                )
+            }
+        }
     }
 }
 
