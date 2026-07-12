@@ -25,8 +25,9 @@ struct ImmersiveView: View {
             
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
-                    whiteboard.position = [0, 1.3, -1.2]
-                    whiteboard.scale = .one * 2
+                    whiteboard.position = [0, 0.85, -0.5]
+                    whiteboard.scale = .one * 1.2
+                    whiteboard.transform.rotation = simd_quatf(angle: Float(3 * Double.pi / 2), axis: SIMD3<Float>(1, 0, 0))
                     content.add(whiteboard)
                 }
 
