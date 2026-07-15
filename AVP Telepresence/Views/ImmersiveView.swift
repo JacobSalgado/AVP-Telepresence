@@ -22,6 +22,17 @@ struct ImmersiveView: View {
     @State private var puzzleAnchor = Entity()
     @State private var interaction = PuzzleInteractionState()
 
+    // MARK: - Placement tuning
+    // Sudoku/whiteboard: vertical, in front of the user, roughly eye level.
+    private let whiteboardPosition: SIMD3<Float> = [0, 1.3, -1.2]
+
+    // Jigsaw table: positioned off to the side so it doesn't overlap the
+    // whiteboard, at typical table height.
+    private let tableHeight: Float = 0.75
+    private let tablePosition: SIMD3<Float> = [0.9, 0, -0.9] // XZ placement; Y is the floor, table sits on top
+    private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.5m puzzle board
+    private let tableThickness: Float = 0.04
+
     var body: some View {
         RealityView { content, attachments in
             if let immersiveContentEntity = try? await Entity(named: "Immersive", in: realityKitContentBundle) {
@@ -29,9 +40,13 @@ struct ImmersiveView: View {
 
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
-                    whiteboard.position = [0, 0.85, -0.5]
+                    whiteboard.position = whiteboardPosition
                     whiteboard.scale = .one * 1.2
-                    whiteboard.transform.rotation = simd_quatf(angle: Float(3 * Double.pi / 2), axis: SIMD3<Float>(1, 0, 0))
+                    // Attachments already face forward (+Z normal) by default,
+                    // which is exactly "vertical, facing the user" — no
+                    // rotation needed. If the content appears mirrored or
+                    // backwards, try a 180° rotation about Y instead:
+                    // whiteboard.transform.rotation = simd_quatf(angle: .pi, axis: [0, 1, 0])
                     content.add(whiteboard)
                 }
 
@@ -39,7 +54,15 @@ struct ImmersiveView: View {
                 content.add(skyBox)
             }
 
-            puzzleAnchor.position = [0, 1.0, -0.8] // adjust placement to taste
+            // Table model, so the puzzle reads as "resting on a table"
+            // rather than floating in space.
+            let table = makeTableEntity()
+            content.add(table)
+
+            // Puzzle pieces sit just above the tabletop surface.
+            puzzleAnchor.position = [tablePosition.x,
+                                      tableHeight + 0.002,
+                                      tablePosition.z]
             content.add(puzzleAnchor)
         }
         update: { content, attachments in
@@ -202,9 +225,56 @@ struct ImmersiveView: View {
         return skyBoxEntity
     }
 
+    /// A simple placeholder table: a flat tabletop slab plus four legs,
+    /// positioned at `tablePosition` (XZ) with its top surface at
+    /// `tableHeight`. Swap the materials for something nicer once you have
+    /// real art, or replace this whole function with a loaded USDZ model.
+    private func makeTableEntity() -> Entity {
+        let table = Entity()
+        table.name = "puzzleTable"
+
+        let woodMaterial = SimpleMaterial(color: .init(red: 0.45, green: 0.30, blue: 0.18, alpha: 1.0),
+                                           roughness: 0.6, isMetallic: false)
+
+        // Tabletop slab, centered so its TOP face sits at tableHeight.
+        let topMesh = MeshResource.generateBox(width: tableTopSize.x,
+                                                height: tableThickness,
+                                                depth: tableTopSize.y)
+        let top = ModelEntity(mesh: topMesh, materials: [woodMaterial])
+        top.position = [tablePosition.x,
+                         tableHeight - tableThickness / 2,
+                         tablePosition.z]
+        table.addChild(top)
+
+        // Four legs running from the underside of the tabletop down to the floor.
+        let legThickness: Float = 0.05
+        let legHeight = tableHeight - tableThickness
+        let legMesh = MeshResource.generateBox(width: legThickness, height: legHeight, depth: legThickness)
+
+        let insetX = tableTopSize.x / 2 - legThickness
+        let insetZ = tableTopSize.y / 2 - legThickness
+        let legOffsets: [SIMD2<Float>] = [
+            [ insetX,  insetZ], [ insetX, -insetZ],
+            [-insetX,  insetZ], [-insetX, -insetZ]
+        ]
+
+        for offset in legOffsets {
+            let leg = ModelEntity(mesh: legMesh, materials: [woodMaterial])
+            leg.position = [tablePosition.x + offset.x,
+                             legHeight / 2,
+                             tablePosition.z + offset.y]
+            table.addChild(leg)
+        }
+
+        return table
+    }
+
     private func makePieceEntity(for piece: PuzzlePiece) -> ModelEntity {
         print("Creating entity for piece \(piece.id)")
-        let mesh = MeshResource.generatePlane(width: piece.pieceSize.x, height: piece.pieceSize.y)
+        // generatePlane(width:depth:) lies FLAT in the XZ-plane (normal +Y) —
+        // this is the correct overload for "resting on a table." The other
+        // overload, generatePlane(width:height:), stands upright instead.
+        let mesh = MeshResource.generatePlane(width: piece.pieceSize.x, depth: piece.pieceSize.y)
 
         var material = UnlitMaterial()
         if let texture = try? TextureResource.load(named: piece.imageName) {
@@ -215,6 +285,8 @@ struct ImmersiveView: View {
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.name = "piece_\(piece.id)"
         entity.position = piece.currentPosition
+        // generatePlane already lies flat (XZ-plane, normal +Y) — that's
+        // exactly "resting on a table," so no rotation is applied here.
         entity.components.set(InputTargetComponent())
         entity.generateCollisionShapes(recursive: false)
         return entity
