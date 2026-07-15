@@ -2,6 +2,16 @@ import Foundation
 import simd
 import Combine
 
+/// Emitted whenever a remote participant's drag updates this client's
+/// puzzle state, so the view layer can animate the affected entities
+/// smoothly instead of teleporting them.
+struct RemotePuzzleUpdate {
+    let positions: [Int: SIMD3<Float>]
+    /// nil while the remote user is still mid-drag; set to true/false once
+    /// they release (whether it snapped or not).
+    let isPlaced: Bool?
+}
+
 @MainActor
 final class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
@@ -12,6 +22,10 @@ final class PuzzleViewModel: ObservableObject {
     /// the tabletop. Aspect ratio is taken from layout.json automatically.
     let boardWidthMeters: Float = 0.28
     private(set) var boardSizeMeters: SIMD3<Float> = .zero
+
+    /// Fires on every remote-applied update. ImmersiveView subscribes to
+    /// this to animate the corresponding RealityKit entities.
+    let remoteUpdates = PassthroughSubject<RemotePuzzleUpdate, Never>()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -78,9 +92,9 @@ final class PuzzleViewModel: ObservableObject {
         return keys.compactMap {piecesByGridPosition[$0]}
     }
 
-    /// Called by the view after a drag ends. Snaps the piece's whole group
-    /// onto a matching neighbor's group if close enough on the table plane
-    /// (X/Z — Y is ignored since it's just the small lift-above-table
+    /// Called by the view after a LOCAL drag ends. Snaps the piece's whole
+    /// group onto a matching neighbor's group if close enough on the table
+    /// plane (X/Z — Y is ignored since it's just the small lift-above-table
     /// height and shouldn't block a valid snap).
     func handleDragEnded(draggedPiece: PuzzlePiece) {
         let group = piecesInGroup(of: draggedPiece)
@@ -114,6 +128,36 @@ final class PuzzleViewModel: ObservableObject {
         } else {
             for m in group { m.isPlaced = false }
         }
+    }
+
+    // MARK: - Remote sync
+
+    /// Applies a live (still-dragging) position update from a remote
+    /// participant. Does not touch isPlaced — that's only decided on
+    /// drag-end.
+    func applyRemoteDragUpdate(groupPositions: [Int: SIMD3<Float>]) {
+        for (id, pos) in groupPositions {
+            piecesByID[id]?.currentPosition = pos
+        }
+        remoteUpdates.send(RemotePuzzleUpdate(positions: groupPositions, isPlaced: nil))
+    }
+
+    /// Applies the final, settled state from a remote participant's
+    /// completed drag, and keeps this client's union-find groups
+    /// consistent with theirs (merging every piece in the payload into one
+    /// group, mirroring whatever merge happened on their end).
+    func applyRemoteDragEnded(groupPositions: [Int: SIMD3<Float>], isPlaced: Bool) {
+        for (id, pos) in groupPositions {
+            piecesByID[id]?.currentPosition = pos
+            piecesByID[id]?.isPlaced = isPlaced
+        }
+        let ids = Array(groupPositions.keys)
+        if let first = ids.first {
+            for other in ids.dropFirst() {
+                union(first, other)
+            }
+        }
+        remoteUpdates.send(RemotePuzzleUpdate(positions: groupPositions, isPlaced: isPlaced))
     }
 
     private func checkSolved() {

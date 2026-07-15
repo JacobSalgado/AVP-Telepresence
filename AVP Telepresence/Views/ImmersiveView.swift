@@ -9,6 +9,7 @@ import SwiftUI
 import RealityKit
 import RealityKitContent
 import AVFoundation
+import Combine
 
 struct ImmersiveView: View {
 
@@ -22,6 +23,10 @@ struct ImmersiveView: View {
     @State private var puzzleAnchor = Entity()
     @State private var interaction = PuzzleInteractionState()
 
+    // Throttle for how often we broadcast live drag positions. 15-20x/sec
+    // is plenty smooth without flooding the messenger.
+    private let dragBroadcastInterval: TimeInterval = 0.06
+
     // MARK: - Placement tuning
     // Sudoku/whiteboard: vertical, in front of the user, roughly eye level.
     private let whiteboardPosition: SIMD3<Float> = [0, 1.3, -1.2]
@@ -30,7 +35,7 @@ struct ImmersiveView: View {
     // whiteboard, at typical table height.
     private let tableHeight: Float = 0.75
     private let tablePosition: SIMD3<Float> = [0.9, 0, -0.9] // XZ placement; Y is the floor, table sits on top
-    private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.5m puzzle board
+    private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.28m puzzle board
     private let tableThickness: Float = 0.04
 
     var body: some View {
@@ -84,6 +89,31 @@ struct ImmersiveView: View {
             guard !hasLoadedPuzzle else { return }
             hasLoadedPuzzle = true
             puzzleViewModel.loadPuzzle()
+
+            // Hand SessionManager a reference so it can push incoming
+            // network updates straight into the model.
+            sessionManager.puzzleViewModel = puzzleViewModel
+
+            // Whenever a remote participant's drag updates our local model,
+            // animate the affected entities smoothly rather than snapping.
+            puzzleViewModel.remoteUpdates
+                .sink { update in
+                    for (id, position) in update.positions {
+                        guard let entity = interaction.pieceEntities[id] else { continue }
+                        var transform = entity.transform
+                        transform.translation = position
+                        entity.move(to: transform, relativeTo: entity.parent, duration: 0.08)
+
+                        if let isPlaced = update.isPlaced {
+                            if isPlaced {
+                                entity.components.remove(InputTargetComponent.self)
+                            } else if entity.components[InputTargetComponent.self] == nil {
+                                entity.components.set(InputTargetComponent())
+                            }
+                        }
+                    }
+                }
+                .store(in: &interaction.cancellables)
         }
         .gesture(
             DragGesture()
@@ -111,6 +141,14 @@ struct ImmersiveView: View {
                             member.currentPosition = newPos
                             interaction.pieceEntities[member.id]?.position = newPos
                         }
+
+                        // Throttled broadcast so remote participants see this
+                        // drag happening live, without flooding the messenger.
+                        let now = Date()
+                        if now.timeIntervalSince(interaction.lastDragBroadcast) >= dragBroadcastInterval {
+                            interaction.lastDragBroadcast = now
+                            sessionManager.sendPuzzleDragUpdate(pieces: group)
+                        }
                     }
                 }
                 .onEnded { value in
@@ -128,6 +166,10 @@ struct ImmersiveView: View {
                             interaction.pieceEntities[member.id]?.components.remove(InputTargetComponent.self)
                         }
                     }
+
+                    // Broadcast the final, settled state (position + placed)
+                    // so remote clients land in exactly the same spot.
+                    sessionManager.sendPuzzleDragEnded(pieces: group)
                 }
         )
         .simultaneousGesture(
@@ -303,6 +345,8 @@ struct ImmersiveView: View {
 final class PuzzleInteractionState {
     var pieceEntities: [Int: ModelEntity] = [:]
     var dragStartPositions: [Int: SIMD3<Float>] = [:]
+    var lastDragBroadcast: Date = .distantPast
+    var cancellables = Set<AnyCancellable>()
 }
 
 #Preview(immersionStyle: .full) {

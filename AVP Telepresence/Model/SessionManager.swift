@@ -14,6 +14,12 @@ import Foundation
 @Observable
 class SessionManager {
     var appModel: AppModel?
+
+    /// Set this once your puzzle view model exists (e.g. from ImmersiveView's
+    /// .task, right after puzzleViewModel.loadPuzzle()). Weak to avoid a
+    /// retain cycle, since PuzzleViewModel doesn't need to know about this.
+    weak var puzzleViewModel: PuzzleViewModel?
+
     var session: GroupSession<CollabActivity>?
     var messenger : GroupSessionMessenger?
     var participants: Set<Participant> = []
@@ -104,7 +110,27 @@ class SessionManager {
             try? await messenger?.send(message)
         }
     }
-    
+
+    // MARK: - Puzzle sync
+
+    /// Call from onChanged, throttled (e.g. ~15-20x/sec, not every frame).
+    /// Broadcasts the live positions of every piece in the dragged group so
+    /// remote clients see the drag happening smoothly, not just on release.
+    func sendPuzzleDragUpdate(pieces: [PuzzlePiece]) {
+        let payload = Dictionary(uniqueKeysWithValues:
+            pieces.map { ($0.id, CodableVector3($0.currentPosition)) })
+        send(.puzzlePieceDragging(groupPositions: payload))
+    }
+
+    /// Call once from onEnded. Broadcasts the final, settled state of the
+    /// dragged group (including whether it snapped/placed).
+    func sendPuzzleDragEnded(pieces: [PuzzlePiece]) {
+        let payload = Dictionary(uniqueKeysWithValues:
+            pieces.map { ($0.id, CodableVector3($0.currentPosition)) })
+        let isPlaced = pieces.first?.isPlaced ?? false
+        send(.puzzlePieceDragEnded(groupPositions: payload, isPlaced: isPlaced))
+    }
+
     @MainActor
     private func handle(_ message: SceneMessage, from participant: Participant){
         // apply synced state updates here
@@ -121,6 +147,12 @@ class SessionManager {
             appModel?.whiteboardStrokes.append(stroke)
         case .whiteboardCleared:
             appModel?.whiteboardStrokes.removeAll()
+        case .puzzlePieceDragging(let groupPositions):
+            let positions = groupPositions.mapValues { $0.simd }
+            puzzleViewModel?.applyRemoteDragUpdate(groupPositions: positions)
+        case .puzzlePieceDragEnded(let groupPositions, let isPlaced):
+            let positions = groupPositions.mapValues { $0.simd }
+            puzzleViewModel?.applyRemoteDragEnded(groupPositions: positions, isPlaced: isPlaced)
         }
     }
 }
@@ -153,6 +185,20 @@ struct CodableTransform: Codable {
     init(_ matrix: simd_float4x4) { self.matrix = matrix }
 }
 
+/// Lightweight Codable wrapper for SIMD3<Float>, used for puzzle piece
+/// positions over the network (much smaller/simpler than a full transform).
+struct CodableVector3: Codable {
+    var x: Float
+    var y: Float
+    var z: Float
+
+    var simd: SIMD3<Float> { SIMD3<Float>(x, y, z) }
+
+    init(_ v: SIMD3<Float>) {
+        x = v.x; y = v.y; z = v.z
+    }
+}
+
 
 // message type
 enum SceneMessage: Codable {
@@ -161,9 +207,11 @@ enum SceneMessage: Codable {
     case exitImmersiveSpace
     case whiteboardStroke(WhiteboardStroke)
     case whiteboardCleared
+    case puzzlePieceDragging(groupPositions: [Int: CodableVector3])
+    case puzzlePieceDragEnded(groupPositions: [Int: CodableVector3], isPlaced: Bool)
     
     private enum CodingKeys: String, CodingKey {
-        case type, id, transform, cardID, groupID, label, stroke
+        case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced
     }
     
     func encode(to encoder: Encoder) throws {
@@ -182,6 +230,13 @@ enum SceneMessage: Codable {
             try container.encode(stroke, forKey: .stroke)
         case .whiteboardCleared:
             try container.encode("whiteboardCleared", forKey: .type)
+        case .puzzlePieceDragging(let groupPositions):
+            try container.encode("puzzlePieceDragging", forKey: .type)
+            try container.encode(groupPositions, forKey: .groupPositions)
+        case .puzzlePieceDragEnded(let groupPositions, let isPlaced):
+            try container.encode("puzzlePieceDragEnded", forKey: .type)
+            try container.encode(groupPositions, forKey: .groupPositions)
+            try container.encode(isPlaced, forKey: .isPlaced)
         }
     }
     
@@ -202,6 +257,13 @@ enum SceneMessage: Codable {
             self = .whiteboardStroke(stroke)
         case "whiteboardCleared":
             self = .whiteboardCleared
+        case "puzzlePieceDragging":
+            let groupPositions = try container.decode([Int: CodableVector3].self, forKey: .groupPositions)
+            self = .puzzlePieceDragging(groupPositions: groupPositions)
+        case "puzzlePieceDragEnded":
+            let groupPositions = try container.decode([Int: CodableVector3].self, forKey: .groupPositions)
+            let isPlaced = try container.decode(Bool.self, forKey: .isPlaced)
+            self = .puzzlePieceDragEnded(groupPositions: groupPositions, isPlaced: isPlaced)
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,
