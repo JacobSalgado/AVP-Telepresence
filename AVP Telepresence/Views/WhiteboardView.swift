@@ -20,8 +20,8 @@ struct WhiteboardView: View {
     @State private var currentPoints: [CGPoint] = []
     
     private let boardSize: CGFloat = 720
-    private let gridSize: Int = 4
-    private var cellSize: CGFloat {boardSize / 4}
+    private let gridSize: Int = 9
+    private var cellSize: CGFloat {boardSize / 9}
 
     var body: some View {
         VStack(spacing: 0) {
