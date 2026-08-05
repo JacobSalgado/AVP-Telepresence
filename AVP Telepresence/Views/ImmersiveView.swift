@@ -34,7 +34,7 @@ struct ImmersiveView: View {
     // Jigsaw table: positioned off to the side so it doesn't overlap the
     // whiteboard, at typical table height.
     private let tableHeight: Float = 0.75
-    private let tablePosition: SIMD3<Float> = [0, 0, -0.9] // XZ placement; Y is the floor, table sits on top
+    private let tablePosition: SIMD3<Float> = [0.9, 0, -0.9] // XZ placement; Y is the floor, table sits on top
     private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.28m puzzle board
     private let tableThickness: Float = 0.04
 
@@ -335,16 +335,15 @@ struct ImmersiveView: View {
     }
 
     private func pieceForEntity(_ entity: Entity) -> PuzzlePiece? {
-        guard entity.name.hasPrefix("piece_"),
-              let idString = entity.name.split(separator: "_").last,
-              let id = Int(idString) else { return nil }
+        guard entity.name.hasPrefix("piece_") else { return nil }
+        let id = String(entity.name.dropFirst("piece_".count))
         return puzzleViewModel.pieces.first { $0.id == id }
     }
 }
 
 final class PuzzleInteractionState {
-    var pieceEntities: [Int: ModelEntity] = [:]
-    var dragStartPositions: [Int: SIMD3<Float>] = [:]
+    var pieceEntities: [String: ModelEntity] = [:]
+    var dragStartPositions: [String: SIMD3<Float>] = [:]
     var lastDragBroadcast: Date = .distantPast
     var cancellables = Set<AnyCancellable>()
 }

@@ -207,8 +207,8 @@ enum SceneMessage: Codable {
     case exitImmersiveSpace
     case whiteboardStroke(WhiteboardStroke)
     case whiteboardCleared
-    case puzzlePieceDragging(groupPositions: [Int: CodableVector3])
-    case puzzlePieceDragEnded(groupPositions: [Int: CodableVector3], isPlaced: Bool)
+    case puzzlePieceDragging(groupPositions: [String: CodableVector3])
+    case puzzlePieceDragEnded(groupPositions: [String: CodableVector3], isPlaced: Bool)
     
     private enum CodingKeys: String, CodingKey {
         case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced
@@ -258,10 +258,10 @@ enum SceneMessage: Codable {
         case "whiteboardCleared":
             self = .whiteboardCleared
         case "puzzlePieceDragging":
-            let groupPositions = try container.decode([Int: CodableVector3].self, forKey: .groupPositions)
+            let groupPositions = try container.decode([String: CodableVector3].self, forKey: .groupPositions)
             self = .puzzlePieceDragging(groupPositions: groupPositions)
         case "puzzlePieceDragEnded":
-            let groupPositions = try container.decode([Int: CodableVector3].self, forKey: .groupPositions)
+            let groupPositions = try container.decode([String: CodableVector3].self, forKey: .groupPositions)
             let isPlaced = try container.decode(Bool.self, forKey: .isPlaced)
             self = .puzzlePieceDragEnded(groupPositions: groupPositions, isPlaced: isPlaced)
         default:

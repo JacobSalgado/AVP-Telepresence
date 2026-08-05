@@ -6,7 +6,7 @@ import Combine
 /// puzzle state, so the view layer can animate the affected entities
 /// smoothly instead of teleporting them.
 struct RemotePuzzleUpdate {
-    let positions: [Int: SIMD3<Float>]
+    let positions: [String: SIMD3<Float>]
     /// nil while the remote user is still mid-drag; set to true/false once
     /// they release (whether it snapped or not).
     let isPlaced: Bool?
@@ -17,9 +17,9 @@ final class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var isSolved: Bool = false
 
-    /// Overall board size in meters. Shrunk down so the whole puzzle
-    /// (assembled board + scattered pieces around it) comfortably fits on
-    /// the tabletop. Aspect ratio is taken from layout.json automatically.
+    /// Overall board size in meters. Adjust to taste for how big the
+    /// puzzle should appear on the table. Aspect ratio is taken from
+    /// layout.json's puzzle.width/height automatically.
     let boardWidthMeters: Float = 0.28
     private(set) var boardSizeMeters: SIMD3<Float> = .zero
 
@@ -31,18 +31,18 @@ final class PuzzleViewModel: ObservableObject {
 
     // "row_col" -> piece
     private var piecesByGridPosition: [String: PuzzlePiece] = [:]
-    private var piecesByID: [Int: PuzzlePiece] = [:]
+    private var piecesByID: [String: PuzzlePiece] = [:]
 
     // union-find grouping (which pieces are locked together)
-    private var parent: [Int: Int] = [:]
+    private var parent: [String: String] = [:]
 
-    private func find(_ id: Int) -> Int {
+    private func find(_ id: String) -> String {
         if parent[id] == nil { parent[id] = id }
         if parent[id] != id { parent[id] = find(parent[id]!) }
         return parent[id]!
     }
 
-    private func union(_ a: Int, _ b: Int) {
+    private func union(_ a: String, _ b: String) {
         let rootA = find(a), rootB = find(b)
         guard rootA != rootB else { return }
         parent[rootA] = rootB
@@ -64,14 +64,16 @@ final class PuzzleViewModel: ObservableObject {
             return
         }
 
-        let boardDepth = boardWidthMeters / Float(layout.boardAspect)
+        let aspect = layout.puzzle.width / layout.puzzle.height
+        let boardDepth = boardWidthMeters / Float(aspect)
         boardSizeMeters = SIMD3<Float>(boardWidthMeters, boardDepth, 0)
         let boardSize2D = SIMD2<Float>(boardWidthMeters, boardDepth)
 
         var newPieces: [PuzzlePiece] = []
         for pieceData in layout.pieces {
             let scatter = Self.randomScatterPosition(around: boardSize2D)
-            let piece = PuzzlePiece(data: pieceData, boardSizeMeters: boardSize2D, scatterPosition: scatter)
+            let piece = PuzzlePiece(data: pieceData, puzzleDimensions: layout.puzzle,
+                                     boardSizeMeters: boardSize2D, scatterPosition: scatter)
             newPieces.append(piece)
 
             // Watch each piece's placement state so we can detect a full solve.
@@ -135,7 +137,7 @@ final class PuzzleViewModel: ObservableObject {
     /// Applies a live (still-dragging) position update from a remote
     /// participant. Does not touch isPlaced — that's only decided on
     /// drag-end.
-    func applyRemoteDragUpdate(groupPositions: [Int: SIMD3<Float>]) {
+    func applyRemoteDragUpdate(groupPositions: [String: SIMD3<Float>]) {
         for (id, pos) in groupPositions {
             piecesByID[id]?.currentPosition = pos
         }
@@ -146,7 +148,7 @@ final class PuzzleViewModel: ObservableObject {
     /// completed drag, and keeps this client's union-find groups
     /// consistent with theirs (merging every piece in the payload into one
     /// group, mirroring whatever merge happened on their end).
-    func applyRemoteDragEnded(groupPositions: [Int: SIMD3<Float>], isPlaced: Bool) {
+    func applyRemoteDragEnded(groupPositions: [String: SIMD3<Float>], isPlaced: Bool) {
         for (id, pos) in groupPositions {
             piecesByID[id]?.currentPosition = pos
             piecesByID[id]?.isPlaced = isPlaced

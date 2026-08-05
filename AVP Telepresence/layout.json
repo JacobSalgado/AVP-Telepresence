@@ -1,291 +1,469 @@
 {
-  "grid": {
-    "cols": 4,
-    "rows": 5
+  "version": "1.0",
+  "generatedAt": "2026-08-05T18:15:41.225Z",
+  "puzzle": {
+    "width": 300,
+    "height": 185,
+    "tilesX": 6,
+    "tilesY": 4,
+    "totalPieces": 24
   },
-  "boardWidthPx": 4700,
-  "boardHeightPx": 5823,
   "pieces": [
     {
-      "id": 0,
-      "row": 0,
-      "col": 0,
-      "file": "piece_r0_c0.png",
-      "boardX": 4,
-      "boardY": 4,
-      "width": 1197,
-      "height": 1186,
-      "homeCenterNormX": 0.12819148936170213,
-      "homeCenterNormY": 0.10252447192168986,
-      "widthNorm": 0.25468085106382976,
-      "heightNorm": 0.2036750815730723
+      "id": "A1",
+      "gridX": 0,
+      "gridY": 0,
+      "fileName": "pieces/A1.png",
+      "label": "A1",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 82.38,
+        "height": 78.63
+      },
+      "connections": {
+        "top": null,
+        "right": "B1",
+        "bottom": "A2",
+        "left": null
+      }
     },
     {
-      "id": 1,
-      "row": 0,
-      "col": 1,
-      "file": "piece_r0_c1.png",
-      "boardX": 886,
-      "boardY": 4,
-      "width": 1490,
-      "height": 1186,
-      "homeCenterNormX": 0.34702127659574467,
-      "homeCenterNormY": 0.10252447192168986,
-      "widthNorm": 0.3170212765957447,
-      "heightNorm": 0.2036750815730723
+      "id": "B1",
+      "gridX": 1,
+      "gridY": 0,
+      "fileName": "pieces/B1.png",
+      "label": "B1",
+      "bounds": {
+        "x": -32.37,
+        "y": 0,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": null,
+        "right": "C1",
+        "bottom": "B2",
+        "left": "A1"
+      }
     },
     {
-      "id": 2,
-      "row": 0,
-      "col": 2,
-      "file": "piece_r0_c2.png",
-      "boardX": 2061,
-      "boardY": 4,
-      "width": 1491,
-      "height": 1447,
-      "homeCenterNormX": 0.5971276595744681,
-      "homeCenterNormY": 0.12493560020607934,
-      "widthNorm": 0.3172340425531915,
-      "heightNorm": 0.2484973381418513
+      "id": "C1",
+      "gridX": 2,
+      "gridY": 0,
+      "fileName": "pieces/C1.png",
+      "label": "C1",
+      "bounds": {
+        "x": -32.37,
+        "y": 0,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": null,
+        "right": "D1",
+        "bottom": "C2",
+        "left": "B1"
+      }
     },
     {
-      "id": 3,
-      "row": 0,
-      "col": 3,
-      "file": "piece_r0_c3.png",
-      "boardX": 3237,
-      "boardY": 3,
-      "width": 1460,
-      "height": 1187,
-      "homeCenterNormX": 0.8440425531914894,
-      "homeCenterNormY": 0.10243860552979564,
-      "widthNorm": 0.31063829787234043,
-      "heightNorm": 0.20384681435686072
+      "id": "D1",
+      "gridX": 3,
+      "gridY": 0,
+      "fileName": "pieces/D1.png",
+      "label": "D1",
+      "bounds": {
+        "x": -32.37,
+        "y": 0,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": null,
+        "right": "E1",
+        "bottom": "D2",
+        "left": "C1"
+      }
     },
     {
-      "id": 4,
-      "row": 1,
-      "col": 0,
-      "file": "piece_r1_c0.png",
-      "boardX": 4,
-      "boardY": 877,
-      "width": 1197,
-      "height": 1478,
-      "homeCenterNormX": 0.12819148936170213,
-      "homeCenterNormY": 0.27752017860209516,
-      "widthNorm": 0.25468085106382976,
-      "heightNorm": 0.2538210544392925
+      "id": "E1",
+      "gridX": 4,
+      "gridY": 0,
+      "fileName": "pieces/E1.png",
+      "label": "E1",
+      "bounds": {
+        "x": -32.37,
+        "y": 0,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": null,
+        "right": "F1",
+        "bottom": "E2",
+        "left": "D1"
+      }
     },
     {
-      "id": 5,
-      "row": 1,
-      "col": 1,
-      "file": "piece_r1_c1.png",
-      "boardX": 885,
-      "boardY": 877,
-      "width": 1491,
-      "height": 1478,
-      "homeCenterNormX": 0.34691489361702127,
-      "homeCenterNormY": 0.27752017860209516,
-      "widthNorm": 0.3172340425531915,
-      "heightNorm": 0.2538210544392925
+      "id": "F1",
+      "gridX": 5,
+      "gridY": 0,
+      "fileName": "pieces/F1.png",
+      "label": "F1",
+      "bounds": {
+        "x": -32.37,
+        "y": 0,
+        "width": 82.38,
+        "height": 78.63
+      },
+      "connections": {
+        "top": null,
+        "right": null,
+        "bottom": "F2",
+        "left": "E1"
+      }
     },
     {
-      "id": 6,
-      "row": 1,
-      "col": 2,
-      "file": "piece_r1_c2.png",
-      "boardX": 2061,
-      "boardY": 1139,
-      "width": 1491,
-      "height": 1478,
-      "homeCenterNormX": 0.5971276595744681,
-      "homeCenterNormY": 0.32251416795466253,
-      "widthNorm": 0.3172340425531915,
-      "heightNorm": 0.2538210544392925
+      "id": "A2",
+      "gridX": 0,
+      "gridY": 1,
+      "fileName": "pieces/A2.png",
+      "label": "A2",
+      "bounds": {
+        "x": 0,
+        "y": -32.37,
+        "width": 82.38,
+        "height": 111
+      },
+      "connections": {
+        "top": "A1",
+        "right": "B2",
+        "bottom": "A3",
+        "left": null
+      }
     },
     {
-      "id": 7,
-      "row": 1,
-      "col": 3,
-      "file": "piece_r1_c3.png",
-      "boardX": 3236,
-      "boardY": 877,
-      "width": 1461,
-      "height": 1740,
-      "homeCenterNormX": 0.843936170212766,
-      "homeCenterNormY": 0.30001717327837885,
-      "widthNorm": 0.3108510638297872,
-      "heightNorm": 0.29881504379185986
+      "id": "B2",
+      "gridX": 1,
+      "gridY": 1,
+      "fileName": "pieces/B2.png",
+      "label": "B2",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "B1",
+        "right": "C2",
+        "bottom": "B3",
+        "left": "A2"
+      }
     },
     {
-      "id": 8,
-      "row": 2,
-      "col": 0,
-      "file": "piece_r2_c0.png",
-      "boardX": 4,
-      "boardY": 2042,
-      "width": 1197,
-      "height": 1477,
-      "homeCenterNormX": 0.12819148936170213,
-      "homeCenterNormY": 0.4775030053237163,
-      "widthNorm": 0.25468085106382976,
-      "heightNorm": 0.253649321655504
+      "id": "C2",
+      "gridX": 2,
+      "gridY": 1,
+      "fileName": "pieces/C2.png",
+      "label": "C2",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "C1",
+        "right": "D2",
+        "bottom": "C3",
+        "left": "B2"
+      }
     },
     {
-      "id": 9,
-      "row": 2,
-      "col": 1,
-      "file": "piece_r2_c1.png",
-      "boardX": 885,
-      "boardY": 2042,
-      "width": 1756,
-      "height": 1478,
-      "homeCenterNormX": 0.3751063829787234,
-      "homeCenterNormY": 0.4775888717156105,
-      "widthNorm": 0.37361702127659574,
-      "heightNorm": 0.2538210544392925
+      "id": "D2",
+      "gridX": 3,
+      "gridY": 1,
+      "fileName": "pieces/D2.png",
+      "label": "D2",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "D1",
+        "right": "E2",
+        "bottom": "D3",
+        "left": "C2"
+      }
     },
     {
-      "id": 10,
-      "row": 2,
-      "col": 2,
-      "file": "piece_r2_c2.png",
-      "boardX": 2325,
-      "boardY": 2304,
-      "width": 1490,
-      "height": 1478,
-      "homeCenterNormX": 0.6531914893617021,
-      "homeCenterNormY": 0.5225828610681779,
-      "widthNorm": 0.3170212765957447,
-      "heightNorm": 0.2538210544392925
+      "id": "E2",
+      "gridX": 4,
+      "gridY": 1,
+      "fileName": "pieces/E2.png",
+      "label": "E2",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "E1",
+        "right": "F2",
+        "bottom": "E3",
+        "left": "D2"
+      }
     },
     {
-      "id": 11,
-      "row": 2,
-      "col": 3,
-      "file": "piece_r2_c3.png",
-      "boardX": 3501,
-      "boardY": 2304,
-      "width": 1196,
-      "height": 1214,
-      "homeCenterNormX": 0.8721276595744681,
-      "homeCenterNormY": 0.49991413360810577,
-      "widthNorm": 0.25446808510638297,
-      "heightNorm": 0.20848359951914822
+      "id": "F2",
+      "gridX": 5,
+      "gridY": 1,
+      "fileName": "pieces/F2.png",
+      "label": "F2",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 82.38,
+        "height": 111
+      },
+      "connections": {
+        "top": "F1",
+        "right": null,
+        "bottom": "F3",
+        "left": "E2"
+      }
     },
     {
-      "id": 12,
-      "row": 3,
-      "col": 0,
-      "file": "piece_r3_c0.png",
-      "boardX": 4,
-      "boardY": 3207,
-      "width": 1197,
-      "height": 1740,
-      "homeCenterNormX": 0.12819148936170213,
-      "homeCenterNormY": 0.7001545595054096,
-      "widthNorm": 0.25468085106382976,
-      "heightNorm": 0.29881504379185986
+      "id": "A3",
+      "gridX": 0,
+      "gridY": 2,
+      "fileName": "pieces/A3.png",
+      "label": "A3",
+      "bounds": {
+        "x": 0,
+        "y": -32.37,
+        "width": 82.38,
+        "height": 111
+      },
+      "connections": {
+        "top": "A2",
+        "right": "B3",
+        "bottom": "A4",
+        "left": null
+      }
     },
     {
-      "id": 13,
-      "row": 3,
-      "col": 1,
-      "file": "piece_r3_c1.png",
-      "boardX": 886,
-      "boardY": 3207,
-      "width": 1752,
-      "height": 1740,
-      "homeCenterNormX": 0.3748936170212766,
-      "homeCenterNormY": 0.7001545595054096,
-      "widthNorm": 0.3727659574468085,
-      "heightNorm": 0.29881504379185986
+      "id": "B3",
+      "gridX": 1,
+      "gridY": 2,
+      "fileName": "pieces/B3.png",
+      "label": "B3",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "B2",
+        "right": "C3",
+        "bottom": "B4",
+        "left": "A3"
+      }
     },
     {
-      "id": 14,
-      "row": 3,
-      "col": 2,
-      "file": "piece_r3_c2.png",
-      "boardX": 1,
-      "boardY": 1,
-      "width": 4698,
-      "height": 5821,
-      "homeCenterNormX": 0.5,
-      "homeCenterNormY": 0.5,
-      "widthNorm": 0.9995744680851064,
-      "heightNorm": 0.9996565344324232
+      "id": "C3",
+      "gridX": 2,
+      "gridY": 2,
+      "fileName": "pieces/C3.png",
+      "label": "C3",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "C2",
+        "right": "D3",
+        "bottom": "C4",
+        "left": "B3"
+      }
     },
     {
-      "id": 15,
-      "row": 3,
-      "col": 3,
-      "file": "piece_r3_c3.png",
-      "boardX": 3501,
-      "boardY": 3498,
-      "width": 1196,
-      "height": 1449,
-      "homeCenterNormX": 0.8721276595744681,
-      "homeCenterNormY": 0.7251416795466255,
-      "widthNorm": 0.25446808510638297,
-      "heightNorm": 0.24884080370942813
+      "id": "D3",
+      "gridX": 3,
+      "gridY": 2,
+      "fileName": "pieces/D3.png",
+      "label": "D3",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "D2",
+        "right": "E3",
+        "bottom": "D4",
+        "left": "C3"
+      }
     },
     {
-      "id": 16,
-      "row": 4,
-      "col": 0,
-      "file": "piece_r4_c0.png",
-      "boardX": 4,
-      "boardY": 4634,
-      "width": 1461,
-      "height": 1186,
-      "homeCenterNormX": 0.15627659574468086,
-      "homeCenterNormY": 0.8976472608620986,
-      "widthNorm": 0.3108510638297872,
-      "heightNorm": 0.2036750815730723
+      "id": "E3",
+      "gridX": 4,
+      "gridY": 2,
+      "fileName": "pieces/E3.png",
+      "label": "E3",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 111
+      },
+      "connections": {
+        "top": "E2",
+        "right": "F3",
+        "bottom": "E4",
+        "left": "D3"
+      }
     },
     {
-      "id": 17,
-      "row": 4,
-      "col": 1,
-      "file": "piece_r4_c1.png",
-      "boardX": 1150,
-      "boardY": 4634,
-      "width": 1226,
-      "height": 1186,
-      "homeCenterNormX": 0.3751063829787234,
-      "homeCenterNormY": 0.8976472608620986,
-      "widthNorm": 0.26085106382978723,
-      "heightNorm": 0.2036750815730723
+      "id": "F3",
+      "gridX": 5,
+      "gridY": 2,
+      "fileName": "pieces/F3.png",
+      "label": "F3",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 82.38,
+        "height": 111
+      },
+      "connections": {
+        "top": "F2",
+        "right": null,
+        "bottom": "F4",
+        "left": "E3"
+      }
     },
     {
-      "id": 18,
-      "row": 4,
-      "col": 2,
-      "file": "piece_r4_c2.png",
-      "boardX": 2061,
-      "boardY": 4634,
-      "width": 1755,
-      "height": 1186,
-      "homeCenterNormX": 0.6252127659574468,
-      "homeCenterNormY": 0.8976472608620986,
-      "widthNorm": 0.37340425531914895,
-      "heightNorm": 0.2036750815730723
+      "id": "A4",
+      "gridX": 0,
+      "gridY": 3,
+      "fileName": "pieces/A4.png",
+      "label": "A4",
+      "bounds": {
+        "x": 0,
+        "y": -32.37,
+        "width": 82.38,
+        "height": 78.63
+      },
+      "connections": {
+        "top": "A3",
+        "right": "B4",
+        "bottom": null,
+        "left": null
+      }
     },
     {
-      "id": 19,
-      "row": 4,
-      "col": 3,
-      "file": "piece_r4_c3.png",
-      "boardX": 3501,
-      "boardY": 4634,
-      "width": 1196,
-      "height": 1186,
-      "homeCenterNormX": 0.8721276595744681,
-      "homeCenterNormY": 0.8976472608620986,
-      "widthNorm": 0.25446808510638297,
-      "heightNorm": 0.2036750815730723
+      "id": "B4",
+      "gridX": 1,
+      "gridY": 3,
+      "fileName": "pieces/B4.png",
+      "label": "B4",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": "B3",
+        "right": "C4",
+        "bottom": null,
+        "left": "A4"
+      }
+    },
+    {
+      "id": "C4",
+      "gridX": 2,
+      "gridY": 3,
+      "fileName": "pieces/C4.png",
+      "label": "C4",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": "C3",
+        "right": "D4",
+        "bottom": null,
+        "left": "B4"
+      }
+    },
+    {
+      "id": "D4",
+      "gridX": 3,
+      "gridY": 3,
+      "fileName": "pieces/D4.png",
+      "label": "D4",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": "D3",
+        "right": "E4",
+        "bottom": null,
+        "left": "C4"
+      }
+    },
+    {
+      "id": "E4",
+      "gridX": 4,
+      "gridY": 3,
+      "fileName": "pieces/E4.png",
+      "label": "E4",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 114.75,
+        "height": 78.63
+      },
+      "connections": {
+        "top": "E3",
+        "right": "F4",
+        "bottom": null,
+        "left": "D4"
+      }
+    },
+    {
+      "id": "F4",
+      "gridX": 5,
+      "gridY": 3,
+      "fileName": "pieces/F4.png",
+      "label": "F4",
+      "bounds": {
+        "x": -32.37,
+        "y": -32.37,
+        "width": 82.38,
+        "height": 78.63
+      },
+      "connections": {
+        "top": "F3",
+        "right": null,
+        "bottom": null,
+        "left": "E4"
+      }
     }
-  ],
-  "boardAspect": 0.8071440838055984
+  ]
 }
