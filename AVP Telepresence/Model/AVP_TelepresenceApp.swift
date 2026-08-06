@@ -40,11 +40,14 @@ struct AVP_TelepresenceApp: App {
         
         // 360 DEGREE VIDEO
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
-            ImmersiveView()
-                .environment(appModel)
-                .environment(sessionManager)
-                .onAppear {
-                    appModel.immersiveSpaceState = .open
+            ZStack {
+                ImmersiveView()
+                TileSudokuView()
+            }
+            .environment(appModel)
+            .environment(sessionManager)
+            .onAppear {
+                appModel.immersiveSpaceState = .open
                 }
                 .onDisappear {
                     appModel.immersiveSpaceState = .closed
