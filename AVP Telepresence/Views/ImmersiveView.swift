@@ -21,6 +21,11 @@ struct ImmersiveView: View {
     @State private var hasLoadedPuzzle = false
 
     @State private var puzzleAnchor = Entity()
+    // Shared across all pieces so their relative transparency draw order is
+    // explicit and stable, instead of RealityKit's default per-entity
+    // center-distance heuristic (which flickers when pieces' meshes overlap
+    // heavily — see makePieceEntity).
+    @State private var puzzleSortGroup = ModelSortGroup()
     @State private var interaction = PuzzleInteractionState()
 
     // Throttle for how often we broadcast live drag positions. 15-20x/sec
@@ -105,11 +110,20 @@ struct ImmersiveView: View {
                         entity.move(to: transform, relativeTo: entity.parent, duration: 0.08)
 
                         if let isPlaced = update.isPlaced {
+                            // Drag ended (remotely) — restore full opacity
+                            // and update grabbability to match placement.
+                            setPieceOpacity(id: id, scale: 1.0)
                             if isPlaced {
                                 entity.components.remove(InputTargetComponent.self)
                             } else if entity.components[InputTargetComponent.self] == nil {
                                 entity.components.set(InputTargetComponent())
                             }
+                        } else {
+                            // isPlaced == nil means someone else is still
+                            // actively dragging this piece right now — show
+                            // it semi-transparent here too, mirroring what
+                            // they see locally on their own drag.
+                            setPieceOpacity(id: id, scale: 0.55)
                         }
                     }
                 }
@@ -130,6 +144,11 @@ struct ImmersiveView: View {
                         if interaction.dragStartPositions[piece.id] == nil {
                             for member in group {
                                 interaction.dragStartPositions[member.id] = member.currentPosition
+                                // See through the piece(s) you're holding so
+                                // you can judge alignment against whatever's
+                                // underneath, instead of it just visually
+                                // blocking the piece below.
+                                setPieceOpacity(id: member.id, scale: 0.55)
                             }
                         }
 
@@ -156,7 +175,10 @@ struct ImmersiveView: View {
                           let piece = pieceForEntity(value.entity) else {return}
 
                     let group = puzzleViewModel.piecesInGroup(of: piece)
-                    for member in group { interaction.dragStartPositions[member.id] = nil }
+                    for member in group {
+                        interaction.dragStartPositions[member.id] = nil
+                        setPieceOpacity(id: member.id, scale: 1.0)
+                    }
 
                     puzzleViewModel.handleDragEnded(draggedPiece: piece)
 
@@ -311,6 +333,26 @@ struct ImmersiveView: View {
         return table
     }
 
+    /// Adjusts how see-through a piece is at runtime. Used to make the
+    /// piece(s) currently being dragged (locally or by a remote
+    /// participant) partially transparent, so alignment against whatever's
+    /// underneath is visible, then restored to full opacity on release.
+    /// scale: 1.0 = fully opaque (normal), lower = more see-through.
+    ///
+    /// Skips the material reassignment entirely if this piece is already
+    /// at the requested opacity — during a drag this gets called on every
+    /// throttled update (~16x/sec), so without this check we'd be
+    /// rebuilding and reassigning an identical material dozens of times
+    /// for no visual change.
+    private func setPieceOpacity(id: String, scale: Float) {
+        guard interaction.currentOpacity[id] != scale else { return }
+        guard let entity = interaction.pieceEntities[id],
+              var material = entity.model?.materials.first as? UnlitMaterial else { return }
+        material.blending = .transparent(opacity: .init(scale: scale))
+        entity.model?.materials = [material]
+        interaction.currentOpacity[id] = scale
+    }
+
     private func makePieceEntity(for piece: PuzzlePiece) -> ModelEntity {
         print("Creating entity for piece \(piece.id)")
         // generatePlane(width:depth:) lies FLAT in the XZ-plane (normal +Y) —
@@ -327,6 +369,12 @@ struct ImmersiveView: View {
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.name = "piece_\(piece.id)"
         entity.position = piece.currentPosition
+        // Explicit, stable transparency draw order — same relative
+        // ordering as the yBias in PuzzlePiece. This is what actually
+        // fixes the angle-dependent flicker: RealityKit's default sort is
+        // per-entity center-distance, which is unreliable when pieces'
+        // (mostly-transparent) meshes overlap as heavily as these do.
+        entity.components.set(ModelSortGroupComponent(group: puzzleSortGroup, order: piece.sortOrder))
         // generatePlane already lies flat (XZ-plane, normal +Y) — that's
         // exactly "resting on a table," so no rotation is applied here.
         entity.components.set(InputTargetComponent())
@@ -346,6 +394,9 @@ final class PuzzleInteractionState {
     var dragStartPositions: [String: SIMD3<Float>] = [:]
     var lastDragBroadcast: Date = .distantPast
     var cancellables = Set<AnyCancellable>()
+    /// Tracks each piece's last-applied opacity scale so setPieceOpacity
+    /// can skip redundant material reassignment when nothing's changing.
+    var currentOpacity: [String: Float] = [:]
 }
 
 #Preview(immersionStyle: .full) {

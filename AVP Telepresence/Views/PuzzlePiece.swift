@@ -55,6 +55,11 @@ final class PuzzlePiece: Identifiable, ObservableObject {
     @Published var currentPosition: SIMD3<Float>
     @Published var isPlaced: Bool = false
 
+    /// Stable per-piece index (row-major), used both for the small height
+    /// bias above and for an explicit RealityKit transparency sort order —
+    /// see ModelSortGroupComponent usage in ImmersiveView.makePieceEntity.
+    let sortOrder: Int32
+
     /// - Parameters:
     ///   - puzzleDimensions: the overall canvas size from layout.json's
     ///     "puzzle" object — used purely to normalize bounds.x/y/width/height
@@ -74,12 +79,20 @@ final class PuzzlePiece: Identifiable, ObservableObject {
             ? String(data.fileName.dropLast(4))
             : data.fileName
 
-        // PuzzleGenio's bounds are the piece's full bounding box INCLUDING
-        // tab overhang, in canvas pixels — x/y can be negative for pieces
-        // whose tabs bulge left/up past their nominal cell. The box's
-        // center is still the right reference point for "home position."
-        let centerXPx = data.bounds.x + data.bounds.width / 2
-        let centerYPx = data.bounds.y + data.bounds.height / 2
+        // PuzzleGenio's bounds.x/y are RELATIVE to this piece's own nominal
+        // grid-cell origin (not absolute canvas coordinates) — e.g. B1 and
+        // C1 both have bounds.x == -32.37 despite sitting at completely
+        // different absolute positions. So we first find the nominal cell
+        // origin from row/col, then apply the offset on top of that.
+        let nominalCellWidth = puzzleDimensions.width / Double(puzzleDimensions.tilesX)
+        let nominalCellHeight = puzzleDimensions.height / Double(puzzleDimensions.tilesY)
+        let nominalOriginX = Double(data.col) * nominalCellWidth
+        let nominalOriginY = Double(data.row) * nominalCellHeight
+
+        let absoluteX = nominalOriginX + data.bounds.x
+        let absoluteY = nominalOriginY + data.bounds.y
+        let centerXPx = absoluteX + data.bounds.width / 2
+        let centerYPx = absoluteY + data.bounds.height / 2
 
         let normX = Float(centerXPx / puzzleDimensions.width)
         let normY = Float(centerYPx / puzzleDimensions.height)
@@ -88,11 +101,27 @@ final class PuzzlePiece: Identifiable, ObservableObject {
 
         let hx = normX * boardSizeMeters.x
         let hz = normY * boardSizeMeters.y
+
+        // Every piece's mesh is a plain rectangle sized to its full
+        // (generous, tab-inclusive) bounding box — which means adjacent
+        // pieces' meshes overlap heavily in their transparent regions.
+        // Without this, all placed pieces sit at the exact same height,
+        // and overlapping semi-transparent quads at identical depth cause
+        // GPU sorting to flip depending on viewing angle ("z-fighting" —
+        // the flickery/staticky look). A tiny, stable, unique per-piece
+        // height offset gives the depth buffer something unambiguous to
+        // sort by. 0.3mm per piece is imperceptible at normal viewing
+        // distance but far more than enough to resolve the ambiguity.
+        let yStep: Float = 0.0003
+        let pieceIndex = data.row * puzzleDimensions.tilesX + data.col
+        let yBias = Float(pieceIndex) * yStep
+        self.sortOrder = Int32(pieceIndex)
+
         // Image space: x right, y down. Table space: x right, z "away from
         // the user" across the table's depth. No flip needed here (unlike
         // a vertical wall board) since there's no up/down gravity concern —
         // if the layout ends up mirrored front-to-back, flip the sign on hz.
-        self.homeCenter = SIMD3<Float>(hx, 0, hz)
+        self.homeCenter = SIMD3<Float>(hx, yBias, hz)
         self.pieceSize = SIMD2<Float>(normW * boardSizeMeters.x, normH * boardSizeMeters.y)
         self.currentPosition = scatterPosition
     }

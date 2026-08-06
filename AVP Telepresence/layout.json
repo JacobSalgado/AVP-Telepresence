@@ -16,10 +16,10 @@
       "fileName": "pieces/A1.png",
       "label": "A1",
       "bounds": {
-        "x": 0,
-        "y": 0,
-        "width": 82.38,
-        "height": 78.63
+        "x": 0.0,
+        "y": 0.0,
+        "width": 63.158,
+        "height": 48.176
       },
       "connections": {
         "top": null,
@@ -35,10 +35,10 @@
       "fileName": "pieces/B1.png",
       "label": "B1",
       "bounds": {
-        "x": -32.37,
-        "y": 0,
-        "width": 114.75,
-        "height": 78.63
+        "x": -1.87,
+        "y": 0.0,
+        "width": 53.75,
+        "height": 58.411
       },
       "connections": {
         "top": null,
@@ -54,10 +54,10 @@
       "fileName": "pieces/C1.png",
       "label": "C1",
       "bounds": {
-        "x": -32.37,
-        "y": 0,
-        "width": 114.75,
-        "height": 78.63
+        "x": -13.12,
+        "y": 0.0,
+        "width": 76.25,
+        "height": 58.411
       },
       "connections": {
         "top": null,
@@ -73,10 +73,10 @@
       "fileName": "pieces/D1.png",
       "label": "D1",
       "bounds": {
-        "x": -32.37,
-        "y": 0,
-        "width": 114.75,
-        "height": 78.63
+        "x": -1.87,
+        "y": 0.0,
+        "width": 65.0,
+        "height": 48.176
       },
       "connections": {
         "top": null,
@@ -92,10 +92,10 @@
       "fileName": "pieces/E1.png",
       "label": "E1",
       "bounds": {
-        "x": -32.37,
-        "y": 0,
-        "width": 114.75,
-        "height": 78.63
+        "x": -1.87,
+        "y": 0.0,
+        "width": 65.0,
+        "height": 58.411
       },
       "connections": {
         "top": null,
@@ -111,10 +111,10 @@
       "fileName": "pieces/F1.png",
       "label": "F1",
       "bounds": {
-        "x": -32.37,
-        "y": 0,
-        "width": 82.38,
-        "height": 78.63
+        "x": -1.914,
+        "y": 0.0,
+        "width": 51.924,
+        "height": 48.176
       },
       "connections": {
         "top": null,
@@ -130,10 +130,10 @@
       "fileName": "pieces/A2.png",
       "label": "A2",
       "bounds": {
-        "x": 0,
-        "y": -32.37,
-        "width": 82.38,
-        "height": 111
+        "x": 0.0,
+        "y": -12.37,
+        "width": 51.924,
+        "height": 60.5
       },
       "connections": {
         "top": "A1",
@@ -149,10 +149,10 @@
       "fileName": "pieces/B2.png",
       "label": "B2",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -13.12,
+        "y": -1.87,
+        "width": 65.0,
+        "height": 60.5
       },
       "connections": {
         "top": "B1",
@@ -168,10 +168,10 @@
       "fileName": "pieces/C2.png",
       "label": "C2",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -13.12,
+        "y": -1.87,
+        "width": 65.0,
+        "height": 50.0
       },
       "connections": {
         "top": "C1",
@@ -187,10 +187,10 @@
       "fileName": "pieces/D2.png",
       "label": "D2",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -13.12,
+        "y": -12.37,
+        "width": 76.25,
+        "height": 71.0
       },
       "connections": {
         "top": "D1",
@@ -206,10 +206,10 @@
       "fileName": "pieces/E2.png",
       "label": "E2",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -1.87,
+        "y": -1.87,
+        "width": 53.75,
+        "height": 50.0
       },
       "connections": {
         "top": "E1",
@@ -225,10 +225,10 @@
       "fileName": "pieces/F2.png",
       "label": "F2",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 82.38,
-        "height": 111
+        "x": -13.148,
+        "y": -12.37,
+        "width": 63.158,
+        "height": 60.5
       },
       "connections": {
         "top": "F1",
@@ -244,10 +244,10 @@
       "fileName": "pieces/A3.png",
       "label": "A3",
       "bounds": {
-        "x": 0,
-        "y": -32.37,
-        "width": 82.38,
-        "height": 111
+        "x": 0.0,
+        "y": -12.37,
+        "width": 63.158,
+        "height": 71.0
       },
       "connections": {
         "top": "A2",
@@ -263,10 +263,10 @@
       "fileName": "pieces/B3.png",
       "label": "B3",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -1.87,
+        "y": -1.87,
+        "width": 65.0,
+        "height": 60.5
       },
       "connections": {
         "top": "B2",
@@ -282,10 +282,10 @@
       "fileName": "pieces/C3.png",
       "label": "C3",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -1.87,
+        "y": -12.37,
+        "width": 53.75,
+        "height": 71.0
       },
       "connections": {
         "top": "C2",
@@ -301,10 +301,10 @@
       "fileName": "pieces/D3.png",
       "label": "D3",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -13.12,
+        "y": -1.87,
+        "width": 65.0,
+        "height": 50.0
       },
       "connections": {
         "top": "D2",
@@ -320,10 +320,10 @@
       "fileName": "pieces/E3.png",
       "label": "E3",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 111
+        "x": -13.12,
+        "y": -12.37,
+        "width": 76.25,
+        "height": 71.0
       },
       "connections": {
         "top": "E2",
@@ -339,10 +339,10 @@
       "fileName": "pieces/F3.png",
       "label": "F3",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 82.38,
-        "height": 111
+        "x": -1.914,
+        "y": -12.37,
+        "width": 51.924,
+        "height": 60.5
       },
       "connections": {
         "top": "F2",
@@ -358,10 +358,10 @@
       "fileName": "pieces/A4.png",
       "label": "A4",
       "bounds": {
-        "x": 0,
-        "y": -32.37,
-        "width": 82.38,
-        "height": 78.63
+        "x": 0.0,
+        "y": -1.916,
+        "width": 63.158,
+        "height": 48.176
       },
       "connections": {
         "top": "A3",
@@ -377,10 +377,10 @@
       "fileName": "pieces/B4.png",
       "label": "B4",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 78.63
+        "x": -1.87,
+        "y": -1.916,
+        "width": 53.75,
+        "height": 48.176
       },
       "connections": {
         "top": "B3",
@@ -396,10 +396,10 @@
       "fileName": "pieces/C4.png",
       "label": "C4",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 78.63
+        "x": -13.12,
+        "y": -1.916,
+        "width": 76.25,
+        "height": 48.176
       },
       "connections": {
         "top": "C3",
@@ -415,10 +415,10 @@
       "fileName": "pieces/D4.png",
       "label": "D4",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 78.63
+        "x": -1.87,
+        "y": -12.4,
+        "width": 65.0,
+        "height": 58.66
       },
       "connections": {
         "top": "D3",
@@ -434,10 +434,10 @@
       "fileName": "pieces/E4.png",
       "label": "E4",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 114.75,
-        "height": 78.63
+        "x": -1.87,
+        "y": -1.916,
+        "width": 53.75,
+        "height": 48.176
       },
       "connections": {
         "top": "E3",
@@ -453,10 +453,10 @@
       "fileName": "pieces/F4.png",
       "label": "F4",
       "bounds": {
-        "x": -32.37,
-        "y": -32.37,
-        "width": 82.38,
-        "height": 78.63
+        "x": -13.148,
+        "y": -12.4,
+        "width": 63.158,
+        "height": 58.66
       },
       "connections": {
         "top": "F3",
