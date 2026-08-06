@@ -43,6 +43,12 @@ struct ImmersiveView: View {
     private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.28m puzzle board
     private let tableThickness: Float = 0.04
 
+    // Reference card: stands upright beside the table (not on top of it,
+    // so it doesn't compete with tabletop space where pieces scatter).
+    private let referenceCardWidth: Float = 0.22
+    private let referenceCardSideMargin: Float = 0.06 // gap from the table's edge
+    private let referenceCardTiltDegrees: Float = 12   // slight backward lean for readability
+
     var body: some View {
         RealityView { content, attachments in
             if let immersiveContentEntity = try? await Entity(named: "Immersive", in: realityKitContentBundle) {
@@ -68,6 +74,9 @@ struct ImmersiveView: View {
             // rather than floating in space.
             let table = makeTableEntity()
             content.add(table)
+
+            let referenceCard = makeReferenceCardEntity()
+            content.add(referenceCard)
 
             // Puzzle pieces sit just above the tabletop surface.
             puzzleAnchor.position = [tablePosition.x,
@@ -351,6 +360,58 @@ struct ImmersiveView: View {
         material.blending = .transparent(opacity: .init(scale: scale))
         entity.model?.materials = [material]
         interaction.currentOpacity[id] = scale
+    }
+
+    /// A standing reference card showing the assembled puzzle image, placed
+    /// just beside the table (not on its surface) so it doesn't compete
+    /// with the tabletop space pieces scatter across. Add the preview
+    /// image to your Asset Catalog as an image set named "puzzlePreview".
+    private func makeReferenceCardEntity() -> Entity {
+        let card = Entity()
+        card.name = "referenceCard"
+
+        // Match the card's aspect ratio to the preview image itself so it
+        // doesn't look stretched. Falls back to the puzzle board's own
+        // aspect if the texture can't be loaded for some reason.
+        var aspect: Float = 1.62
+        if let texture = try? TextureResource.load(named: "puzzlePreview") {
+            aspect = Float(texture.width) / Float(texture.height)
+        }
+        let cardHeight = referenceCardWidth / aspect
+
+        var material = UnlitMaterial()
+        if let texture = try? TextureResource.load(named: "puzzlePreview") {
+            material.color = .init(texture: .init(texture))
+        }
+        material.blending = .opaque // reference image has no transparency to worry about
+
+        // generatePlane(width:height:) is the UPRIGHT overload (XY-plane,
+        // facing +Z) — this is the one case where we actually want that,
+        // unlike the flat-on-the-table piece meshes.
+        let mesh = MeshResource.generatePlane(width: referenceCardWidth, height: cardHeight)
+        let imageEntity = ModelEntity(mesh: mesh, materials: [material])
+        card.addChild(imageEntity)
+
+        // Position: just past the table's right-hand edge (+X), bottom
+        // edge resting at table height, centered on the table's depth.
+        // NOTE: "right-hand edge" assumes the user approaches the table
+        // from roughly the -Z direction, matching how tablePosition/
+        // whiteboardPosition are set up elsewhere in this file — adjust
+        // the X sign or swap to -Z placement if that doesn't match your
+        // actual room layout once you see it in headset.
+        let cardX = tablePosition.x + tableTopSize.x / 2 + referenceCardSideMargin + referenceCardWidth / 2
+        let cardY = tableHeight + cardHeight / 2
+        let cardZ = tablePosition.z
+        card.position = [cardX, cardY, cardZ]
+
+        // Face back toward the table/user, with a slight backward tilt so
+        // it reads comfortably from a standing height looking down/across
+        // rather than dead-on. Adjust referenceCardTiltDegrees to taste.
+        let faceTowardTable = simd_quatf(angle: -.pi / 2, axis: [0, 1, 0])
+        let tiltBack = simd_quatf(angle: referenceCardTiltDegrees * .pi / 180, axis: [1, 0, 0])
+        card.transform.rotation = faceTowardTable * tiltBack
+
+        return card
     }
 
     private func makePieceEntity(for piece: PuzzlePiece) -> ModelEntity {
