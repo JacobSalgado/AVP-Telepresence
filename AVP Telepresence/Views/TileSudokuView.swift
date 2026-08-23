@@ -25,7 +25,7 @@ struct TileSudokuView: View {
     // MARK: Placement in the immersive space
     // Placed to the LEFT of the drawing whiteboard (which is at x=0),
     // so both boards are visible side by side. Adjust freely.
-    private let boardPosition: SIMD3<Float> = [-1.4, 1.3, -1.2]
+    private let boardPosition: SIMD3<Float> = [1.0, 1.3, -1.7]
 
     // MARK: Visual constants
     private let tileDepth: Float = 0.006
