@@ -27,11 +27,11 @@ struct ContentView: View {
             backgroundGlow
             mainContent
         }
-        .frame(width: 440, height: 580)
+        .frame(width: 540, height: 580)
         .onChange(of: sessionManager.shouldBeImmersed) { _, shouldBeImmersed in
             guard shouldBeImmersed, !showImmersiveSpace else { return }
             Task {
-                await openImmersiveSpace(id: appModel.immersiveSpaceID)
+                await openImmersiveSpace(id: AppModel.immersiveSpaceID)
                 showImmersiveSpace = true
             }
         }

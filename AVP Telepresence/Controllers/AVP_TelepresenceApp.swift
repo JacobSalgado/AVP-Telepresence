@@ -31,15 +31,15 @@ struct AVP_TelepresenceApp: App {
         //.windowStyle(.volumetric)
         //.defaultSize(width: 0.5, height: 0.5, depth: 0.5, in: .meters)
         
-        // Instructions Screen
+        /// This opens up the instructions window that can be viewed prior to entering the immersive space
         WindowGroup (id: "Instructions") {
             InstructionsView()
                 .environment(appModel)
                 
         }
         
-        // 360 DEGREE VIDEO
-        ImmersiveSpace(id: appModel.immersiveSpaceID) {
+        /// This contains the immersiveSpace  for the main scene where the Sudoku and Puzzle Pieces are
+        ImmersiveSpace(id: AppModel.immersiveSpaceID) {
             ZStack {
                 ImmersiveView()
                 TileSudokuView()

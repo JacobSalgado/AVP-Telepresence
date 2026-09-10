@@ -26,11 +26,7 @@ struct PuzzlePieceData: Codable {
 }
 
 struct PuzzleDimensions: Codable {
-    let width: Double
-    let height: Double
-    let tilesX: Int
-    let tilesY: Int
-    let totalPieces: Int
+    let width: Double, height: Double, tilesX: Int, tilesY: Int, totalPieces: Int
 }
 
 struct PuzzleLayout: Codable {
@@ -40,9 +36,7 @@ struct PuzzleLayout: Codable {
 
 /// Runtime state for a piece, wrapping the static layout data.
 final class PuzzlePiece: Identifiable, ObservableObject {
-    let id: String
-    let data: PuzzlePieceData
-    let imageName: String
+    let id: String, data: PuzzlePieceData, imageName: String
 
     /// Home position in board-local space, in meters, measured relative to
     /// the puzzleAnchor. The board lies FLAT on a table: X is left/right,
