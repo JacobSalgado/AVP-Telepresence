@@ -227,7 +227,7 @@ struct ImmersiveView: View {
         // URL that points to the video file. guard statement
         // is used to locate the URL of the video file at the
         // app's main bundle
-        guard let url = Bundle.main.url(forResource: "test3", withExtension: "mp4")
+        guard let url = Bundle.main.url(forResource: "room-recording", withExtension: "mp4")
         else
         {
             print("Error loading video")
@@ -249,7 +249,7 @@ struct ImmersiveView: View {
     }
 
     /* Temporary Image Function until 360 video of room is provided */
-    func generateImageMaterial() -> UnlitMaterial? {
+    /*func generateImageMaterial() -> UnlitMaterial? {
         guard let texture = try? TextureResource.load(
             named: "dam_road.jpg"
         ) else {
@@ -260,7 +260,7 @@ struct ImmersiveView: View {
         material.color = .init(texture: .init(texture))
 
         return material
-    }
+    }*/
 
     /* Skybox creation */
     func generateSkyBox() -> Entity?
@@ -275,22 +275,16 @@ struct ImmersiveView: View {
         /*
         make skybox dynamic, video material
          */
-        /*guard let videoMaterial = generateVideoMaterial()
+        guard let videoMaterial = generateVideoMaterial()
         else
         {
             return nil
-        }*/
-        guard let imageMaterial = generateImageMaterial()
-        else { return nil }
+        }
 
         /*
         Entity is constructed by combining the previously generated spherical mesh and the video material
          */
-        /*let skyBoxEntity = ModelEntity(mesh: skyBoxMesh, materials: [videoMaterial])*/
-        let skyBoxEntity = ModelEntity(
-            mesh: skyBoxMesh,
-            materials: [imageMaterial]
-        )
+        let skyBoxEntity = ModelEntity(mesh: skyBoxMesh, materials: [videoMaterial])
 
         // Get skybox to appear correctly in scene
         skyBoxEntity.scale *= .init(x: -1, y: 1, z: 1)
