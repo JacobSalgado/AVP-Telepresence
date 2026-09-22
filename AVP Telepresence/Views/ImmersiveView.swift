@@ -227,7 +227,7 @@ struct ImmersiveView: View {
         // URL that points to the video file. guard statement
         // is used to locate the URL of the video file at the
         // app's main bundle
-        guard let url = Bundle.main.url(forResource: "room-recording", withExtension: "mp4")
+        guard let url = Bundle.main.url(forResource: "room-recording-books", withExtension: "mp4")
         else
         {
             print("Error loading video")
