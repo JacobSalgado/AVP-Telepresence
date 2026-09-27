@@ -15,13 +15,17 @@ struct ImmersiveView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionManager.self) private var sessionManager
     
-    @State private var sceneModel = ImmersiveSceneModel()
+    @State private var sceneModel: ImmersiveSceneModel
 
     // Puzzle data
     @State private var puzzleViewModel = PuzzleViewModel()
     @State private var hasLoadedPuzzle = false
 
-    
+    init() {
+        let vm = PuzzleViewModel()
+        _puzzleViewModel = State(initialValue: vm)
+        _sceneModel = State(initialValue: ImmersiveSceneModel(puzzleViewModel: vm))
+    }
     
 
     // Throttle for how often we broadcast live drag positions. 15-20x/sec
@@ -48,6 +52,7 @@ struct ImmersiveView: View {
                     // whiteboard.transform.rotation = simd_quatf(angle: .pi, axis: [0, 1, 0])
                     content.add(whiteboard)
                 }
+                await sceneModel.createScene()   
             }
 
             
@@ -196,16 +201,6 @@ struct ImmersiveView: View {
                 }
             )
     }
-}
-
-final class PuzzleInteractionState {
-    var pieceEntities: [String: ModelEntity] = [:]
-    var dragStartPositions: [String: SIMD3<Float>] = [:]
-    var lastDragBroadcast: Date = .distantPast
-    var cancellables = Set<AnyCancellable>()
-    /// Tracks each piece's last-applied opacity scale so setPieceOpacity
-    /// can skip redundant material reassignment when nothing's changing.
-    var currentOpacity: [String: Float] = [:]
 }
 
 #Preview(immersionStyle: .full) {

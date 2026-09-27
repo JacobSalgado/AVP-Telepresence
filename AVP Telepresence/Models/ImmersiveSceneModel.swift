@@ -12,23 +12,24 @@ import Combine
 import AVFoundation
 
 @Observable
-final class ImmersiveSceneModel: ObservableObject {
-    
-    @State private var puzzleAnchor = Entity()
-    @State public var interaction = PuzzleInteractionState() // public to give it to the ImmersiveView
-    
+final class ImmersiveSceneModel {
+    private var puzzleAnchor = Entity()
+    public var interaction = PuzzleInteractionState() // public to give it to the ImmersiveView
     // Shared across all pieces so their relative transparency draw order is
     // explicit and stable, instead of RealityKit's default per-entity
     // center-distance heuristic (which flickers when pieces' meshes overlap
     // heavily — see makePieceEntity).
-    @State private var puzzleSortGroup = ModelSortGroup()
+    private var puzzleSortGroup = ModelSortGroup()
     
-    // Puzzle data
-    @StateObject private var puzzleViewModel = PuzzleViewModel()
+    // takes a reference instead of constructing its own.
+    private var puzzleViewModel: PuzzleViewModel
+    init(puzzleViewModel: PuzzleViewModel) {
+        self.puzzleViewModel = puzzleViewModel
+    }
     
     let rootEntity = Entity()
     
-    var tableEntity: ModelEntity?
+    var tableEntity: Entity?
     var puzzleEntity: Entity?
     var environmentEntity: Entity?
     
@@ -48,6 +49,11 @@ final class ImmersiveSceneModel: ObservableObject {
     
     func createScene() async -> Entity {
         await loadEnvironment()
+        loadTable()
+        loadPuzzle()
+        
+        let referenceCard = makeReferenceCardEntity()
+        await rootEntity.addChild(referenceCard)
         
         return rootEntity
     }
@@ -56,6 +62,8 @@ final class ImmersiveSceneModel: ObservableObject {
         // Table model, so the puzzle reads as "resting on a table"
         // rather than floating in space.
         let _table = makeTableEntity()
+        rootEntity.addChild(_table)
+        tableEntity = _table
         // content.add(table)
         
         
@@ -66,13 +74,13 @@ final class ImmersiveSceneModel: ObservableObject {
         puzzleAnchor.position = [tablePosition.x,
                                   tableHeight + 0.002,
                                   tablePosition.z]
+        rootEntity.addChild(puzzleAnchor)
+        puzzleEntity = puzzleAnchor
     }
     
     private func loadEnvironment() async {
-        
-        
         guard let _skyBox = generateSkyBox() else { return }
-        // content.add(skyBox)
+        await rootEntity.addChild(_skyBox)
     }
     
     /**
@@ -303,11 +311,22 @@ final class ImmersiveSceneModel: ObservableObject {
     }
 
     // pub for immersiveview
-    public func pieceForEntity(_ entity: Entity) -> PuzzlePiece? {
+    @MainActor public func pieceForEntity(_ entity: Entity) -> PuzzlePiece? {
         guard entity.name.hasPrefix("piece_") else { return nil }
         let id = String(entity.name.dropFirst("piece_".count))
         return puzzleViewModel.pieces.first { $0.id == id }
     }
     
+}
+
+@Observable
+final class PuzzleInteractionState {
+    var pieceEntities: [String: ModelEntity] = [:]
+    var dragStartPositions: [String: SIMD3<Float>] = [:]
+    var lastDragBroadcast: Date = .distantPast
+    var cancellables = Set<AnyCancellable>()
+    /// Tracks each piece's last-applied opacity scale so setPieceOpacity
+    /// can skip redundant material reassignment when nothing's changing.
+    var currentOpacity: [String: Float] = [:]
 }
 
