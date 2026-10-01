@@ -11,6 +11,20 @@ import RealityKitContent
 import AVFoundation
 import Combine
 
+struct Viewpoint: Identifiable, Equatable {
+    let id: String
+    let videoName: String
+    let position: SIMD3<Float>      // meters from viewPoint A, same axes as tablePosition
+    let yaw: Float                  // radians;
+    
+    static let all: [Viewpoint] = [
+        .init(id: "a", videoName: "room-recording-books", position: [0,0,0], yaw: 0),
+        .init(id: "b", videoName: "room-recording", position: [1.5,0,-1], yaw: 0),
+        .init(id: "c", videoName: "room-recording2", position: [-1.5,0,-1], yaw: 0)
+        
+    ]
+}
+
 struct ImmersiveView: View {
 
     @Environment(AppModel.self) private var appModel
@@ -31,6 +45,13 @@ struct ImmersiveView: View {
     // Throttle for how often we broadcast live drag positions. 15-20x/sec
     // is plenty smooth without flooding the messenger.
     private let dragBroadcastInterval: TimeInterval = 0.06
+    
+    // Root Entity data for accurate placement of puzzles and whiteboard
+    @State private var worldRoot = Entity()
+    @State private var skyBox: ModelEntity?
+    @State private var skyPlayer = AVPlayer()
+    @State private var currentViewpoint = Viewpoint.all[0]
+    @State private var isTraveling = false
 
     // MARK: - Placement tuning
     // Sudoku/whiteboard: vertical, in front of the user, roughly eye level.
@@ -53,36 +74,37 @@ struct ImmersiveView: View {
         RealityView { content, attachments in
             if let immersiveContentEntity = try? await Entity(named: "Immersive", in: realityKitContentBundle) {
                 content.add(immersiveContentEntity)
+                
+                // world root entities
+                let sky = makeSkyBox(player: skyPlayer)
+                skyBox = sky
+                content.add(sky)
+                content.add(worldRoot)
 
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
                     whiteboard.position = whiteboardPosition
-                    whiteboard.scale = .one * 1.2
-                    // Attachments already face forward (+Z normal) by default,
-                    // which is exactly "vertical, facing the user" — no
-                    // rotation needed. If the content appears mirrored or
-                    // backwards, try a 180° rotation about Y instead:
-                    // whiteboard.transform.rotation = simd_quatf(angle: .pi, axis: [0, 1, 0])
-                    content.add(whiteboard)
+                    whiteboard.scale = .one * 1.5
+                    worldRoot.addChild(whiteboard)
                 }
-
-                guard let skyBox = generateSkyBox() else { return }
-                content.add(skyBox)
+                worldRoot.addChild(makeTableEntity())
+                worldRoot.addChild(makeReferenceCardEntity())
+                
+                puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
+                worldRoot.addChild(puzzleAnchor)
+                
+                for vp in Viewpoint.all {
+                    let hotspot = makeHotspot(for: vp)
+                    interaction.hotspotEntities[vp.id] = hotspot
+                    worldRoot.addChild(hotspot)
+                }
+                
+                _ = loadVideo(currentViewpoint.videoName)
+                skyPlayer.play()
+                applyViewpoint(currentViewpoint)
             }
-
-            // Table model, so the puzzle reads as "resting on a table"
-            // rather than floating in space.
-            let table = makeTableEntity()
-            content.add(table)
-
-            let referenceCard = makeReferenceCardEntity()
-            content.add(referenceCard)
-
-            // Puzzle pieces sit just above the tabletop surface.
-            puzzleAnchor.position = [tablePosition.x,
-                                      tableHeight + 0.002,
-                                      tablePosition.z]
-            content.add(puzzleAnchor)
+            
+            
         }
         update: { content, attachments in
             for piece in puzzleViewModel.pieces {
@@ -145,7 +167,8 @@ struct ImmersiveView: View {
                     // move entities
                     if value.entity.name == "whiteboard" {
                         let newPosition = value.convert(value.gestureValue.location3D, from: .local, to: .scene)
-                        value.entity.position = newPosition
+                        //value.entity.position = newPosition
+                        value.entity.setPosition(newPosition, relativeTo: nil)
                     } else if value.entity.name.hasPrefix("piece_"),
                               let piece = pieceForEntity(value.entity) {
                         let group = puzzleViewModel.piecesInGroup(of: piece)
@@ -221,6 +244,16 @@ struct ImmersiveView: View {
                     entity.scale = .one * Float(value.magnification)
                 }
             )
+        .simultaneousGesture(
+            TapGesture()
+                .targetedToAnyEntity()
+                .onEnded { value in
+                    guard value.entity.name.hasPrefix("hotspot_") else {return}
+                    let id = String(value.entity.name.dropFirst("hotspot_".count))
+                    guard let vp = Viewpoint.all.first(where: {$0.id == id}) else {return}
+                    Task {await travel (to: vp)}
+                }
+        )
     }
     // Returns a VideoMaterial - main way of getting video material for app once video is obtained
     func generateVideoMaterial() -> VideoMaterial? {
@@ -442,6 +475,84 @@ struct ImmersiveView: View {
         let id = String(entity.name.dropFirst("piece_".count))
         return puzzleViewModel.pieces.first { $0.id == id }
     }
+    
+    private func makeSkyBox(player: AVPlayer) -> ModelEntity {
+        let mesh = MeshResource.generateSphere(radius: 1000)
+        let sky = ModelEntity(mesh: mesh, materials: [VideoMaterial(avPlayer: player)])
+        sky.scale *= .init(x: -1, y: 1, z: 1)
+        return sky
+    }
+    
+    private func loadVideo(_ name: String) -> AVPlayerItem? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "mp4") else {
+            print("Missing video: \(name)")
+            return nil
+        }
+        let item = AVPlayerItem(url: url)
+        skyPlayer.replaceCurrentItem(with: item)   // VideoMaterial keeps following the same player
+        return item
+    }
+    
+    // shift the room opposite to the camera so content stays pinned to the real room
+    private func applyViewpoint(_ vp: Viewpoint) {
+        worldRoot.position = [-vp.position.x, 0, -vp.position.z]
+        skyBox?.orientation = simd_quatf(angle: vp.yaw, axis: [0,1,0])
+        for (id, hotspot) in interaction.hotspotEntities {
+            hotspot.isEnabled = (id != vp.id) // hide one you're standing on
+        }
+    }
+    
+    private func makeHotspot(for vp: Viewpoint) -> Entity {
+        let root = Entity()
+        root.name = "hotspot_\(vp.id)"
+        root.position = [vp.position.x, 0.01, vp.position.z]
+        
+        var discMat = UnlitMaterial(color: .white)
+        discMat.blending = .transparent(opacity: .init(scale: 0.5))
+            root.addChild(ModelEntity(mesh: .generateCylinder(height: 0.004, radius: 0.22),
+                                      materials: [discMat]))
+
+            let orb = ModelEntity(mesh: .generateSphere(radius: 0.05),
+                                  materials: [UnlitMaterial(color: .cyan)])
+            orb.position = [0, 0.25, 0]
+            root.addChild(orb)
+
+            root.components.set(InputTargetComponent())
+            root.components.set(CollisionComponent(
+                shapes: [.generateSphere(radius: 0.3).offsetBy(translation: [0, 0.15, 0])]))
+            root.components.set(HoverEffectComponent())
+            return root
+        }
+    private func fade(to target: Float, duration: Double = 0.25) async {
+        let steps = 10
+        let start = skyBox?.components[OpacityComponent.self]?.opacity ?? 1
+        for i in 1...steps {
+            let o = start + (target - start) * Float(i) / Float(steps)
+            skyBox?.components.set(OpacityComponent(opacity: o))
+            worldRoot.components.set(OpacityComponent(opacity: o))
+            try? await Task.sleep(for: .seconds(duration / Double(steps)))
+        }
+    }
+    
+    @MainActor
+    private func travel(to vp: Viewpoint) async {
+        guard !isTraveling, vp.id != currentViewpoint.id else { return }
+        isTraveling = true
+        defer { isTraveling = false }
+
+        await fade(to: 0)
+
+        let resumeTime = skyPlayer.currentTime()
+        if let item = loadVideo(vp.videoName) {
+            _ = await skyPlayer.seek(to: resumeTime)
+            skyPlayer.play()
+
+            currentViewpoint = vp
+            applyViewpoint(vp)
+        }
+
+        await fade(to: 1)
+    }
 }
 
 final class PuzzleInteractionState {
@@ -449,6 +560,7 @@ final class PuzzleInteractionState {
     var dragStartPositions: [String: SIMD3<Float>] = [:]
     var lastDragBroadcast: Date = .distantPast
     var cancellables = Set<AnyCancellable>()
+    var hotspotEntities: [String: Entity] = [:]
     /// Tracks each piece's last-applied opacity scale so setPieceOpacity
     /// can skip redundant material reassignment when nothing's changing.
     var currentOpacity: [String: Float] = [:]
