@@ -19,6 +19,8 @@ class SessionManager {
     /// .task, right after puzzleViewModel.loadPuzzle()). Weak to avoid a
     /// retain cycle, since PuzzleViewModel doesn't need to know about this.
     weak var puzzleViewModel: PuzzleViewModel?
+    
+    weak var tileSudokuModel: TileSudokuModel?
 
     var session: GroupSession<CollabActivity>?
     var messenger : GroupSessionMessenger?
@@ -130,6 +132,13 @@ class SessionManager {
         let isPlaced = pieces.first?.isPlaced ?? false
         send(.puzzlePieceDragEnded(groupPositions: payload, isPlaced: isPlaced))
     }
+    
+    /// broadcasts the full current occupancy of the tile board. Simple
+    /// full-state sync, so we don't
+    /// need per-tile diffing
+    func sendTileSudokuUpdate(placed: [String: Int]) {
+        send(.tileSudokuUpdated(placed: placed))
+    }
 
     @MainActor
     private func handle(_ message: SceneMessage, from participant: Participant){
@@ -153,6 +162,8 @@ class SessionManager {
         case .puzzlePieceDragEnded(let groupPositions, let isPlaced):
             let positions = groupPositions.mapValues { $0.simd }
             puzzleViewModel?.applyRemoteDragEnded(groupPositions: positions, isPlaced: isPlaced)
+        case .tileSudokuUpdated(let placed):
+            tileSudokuModel?.applyRemote(placed: placed)
         }
     }
 }
@@ -209,9 +220,10 @@ enum SceneMessage: Codable {
     case whiteboardCleared
     case puzzlePieceDragging(groupPositions: [String: CodableVector3])
     case puzzlePieceDragEnded(groupPositions: [String: CodableVector3], isPlaced: Bool)
+    case tileSudokuUpdated(placed: [String: Int])
     
     private enum CodingKeys: String, CodingKey {
-        case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced
+        case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced, tilePlaced
     }
     
     func encode(to encoder: Encoder) throws {
@@ -237,6 +249,9 @@ enum SceneMessage: Codable {
             try container.encode("puzzlePieceDragEnded", forKey: .type)
             try container.encode(groupPositions, forKey: .groupPositions)
             try container.encode(isPlaced, forKey: .isPlaced)
+        case .tileSudokuUpdated(let placed):
+            try container.encode("tileSudokuUpdated", forKey: .type)
+            try container.encode(placed, forKey: .tilePlaced)
         }
     }
     
@@ -264,6 +279,9 @@ enum SceneMessage: Codable {
             let groupPositions = try container.decode([String: CodableVector3].self, forKey: .groupPositions)
             let isPlaced = try container.decode(Bool.self, forKey: .isPlaced)
             self = .puzzlePieceDragEnded(groupPositions: groupPositions, isPlaced: isPlaced)
+        case "tileSudokuUpdated":
+            let placed = try container.decode([String: Int].self, forKey: .tilePlaced)
+            self = .tileSudokuUpdated(placed: placed)
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,
