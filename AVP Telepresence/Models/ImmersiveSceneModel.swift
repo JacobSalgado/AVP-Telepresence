@@ -11,9 +11,10 @@ import Observation
 import Combine
 import AVFoundation
 
+@MainActor
 @Observable
 final class ImmersiveSceneModel {
-    private var puzzleAnchor = Entity()
+    public var puzzleAnchor = Entity()
     public var interaction = PuzzleInteractionState() // public to give it to the ImmersiveView
     // Shared across all pieces so their relative transparency draw order is
     // explicit and stable, instead of RealityKit's default per-entity
@@ -47,13 +48,13 @@ final class ImmersiveSceneModel {
     private let referenceCardTiltDegrees: Float = 12   // slight backward lean for readability
 
     
-    func createScene() async -> Entity {
-        await loadEnvironment()
+    func createScene()  -> Entity {
+        loadEnvironment()
         loadTable()
         loadPuzzle()
         
         let referenceCard = makeReferenceCardEntity()
-        await rootEntity.addChild(referenceCard)
+        rootEntity.addChild(referenceCard)
         
         return rootEntity
     }
@@ -78,9 +79,9 @@ final class ImmersiveSceneModel {
         puzzleEntity = puzzleAnchor
     }
     
-    private func loadEnvironment() async {
+    private func loadEnvironment() {
         guard let _skyBox = generateSkyBox() else { return }
-        await rootEntity.addChild(_skyBox)
+        rootEntity.addChild(_skyBox)
     }
     
     /**

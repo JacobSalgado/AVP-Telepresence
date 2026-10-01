@@ -40,6 +40,8 @@ struct ImmersiveView: View {
         RealityView { content, attachments in
             if let immersiveContentEntity = try? await Entity(named: "Immersive", in: realityKitContentBundle) {
                 content.add(immersiveContentEntity)
+                let scene = sceneModel.createScene()
+                content.add(scene)
 
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
@@ -52,16 +54,7 @@ struct ImmersiveView: View {
                     // whiteboard.transform.rotation = simd_quatf(angle: .pi, axis: [0, 1, 0])
                     content.add(whiteboard)
                 }
-                await sceneModel.createScene()   
             }
-
-            
-            
-
-            let referenceCard = sceneModel.makeReferenceCardEntity()
-            content.add(referenceCard)
-
-            
         }
         update: { content, attachments in
             for piece in puzzleViewModel.pieces {
@@ -69,7 +62,7 @@ struct ImmersiveView: View {
                 // it. If one already exists, skip straight to the next piece.
                 guard sceneModel.interaction.pieceEntities[piece.id] == nil else { continue }
                 let entity = sceneModel.makePieceEntity(for: piece)
-                // puzzleAnchor.addChild(entity)
+                sceneModel.puzzleAnchor.addChild(entity)
                 sceneModel.interaction.pieceEntities[piece.id] = entity
             }
         }
