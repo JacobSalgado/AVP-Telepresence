@@ -17,12 +17,14 @@ struct Viewpoint: Identifiable, Equatable {
     let position: SIMD3<Float>      // meters from viewPoint A, same axes as tablePosition
     let yaw: Float                  // radians;
     
+    // found out this doesn't require exact folder path. Just needs video name
     static let all: [Viewpoint] = [
-        .init(id: "a", videoName: "room-recording-books", position: [0,0,0], yaw: 0),
-        .init(id: "b", videoName: "room-recording", position: [1.5,0,-1], yaw: 0),
-        .init(id: "c", videoName: "room-recording2", position: [-1.5,0,-1], yaw: 0)
-        
+        .init(id: "a", videoName: "table-view1", position: [0,0,0], yaw: 0),
+        .init(id: "b", videoName: "table-view2", position: [1.5,0,-1], yaw: 0),
+        .init(id: "c", videoName: "sudoku1", position: [-1.5,0,-1], yaw: 0),
+        .init(id: "d", videoName: "sudoku2", position: [0, 1, 0], yaw: 0)
     ]
+    
 }
 
 struct ImmersiveView: View {
@@ -84,7 +86,7 @@ struct ImmersiveView: View {
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
                     whiteboard.position = whiteboardPosition
-                    whiteboard.scale = .one * 1.5
+                    whiteboard.scale = .one * 1.8
                     worldRoot.addChild(whiteboard)
                 }
                 worldRoot.addChild(makeTableEntity())
@@ -93,6 +95,9 @@ struct ImmersiveView: View {
                 puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
                 worldRoot.addChild(puzzleAnchor)
                 
+                /**
+                 * @brief This iterates through the 360-degree images list and selects which one to play
+                 */
                 for vp in Viewpoint.all {
                     let hotspot = makeHotspot(for: vp)
                     interaction.hotspotEntities[vp.id] = hotspot
@@ -255,75 +260,6 @@ struct ImmersiveView: View {
                 }
         )
     }
-    // Returns a VideoMaterial - main way of getting video material for app once video is obtained
-    func generateVideoMaterial() -> VideoMaterial? {
-        // URL that points to the video file. guard statement
-        // is used to locate the URL of the video file at the
-        // app's main bundle
-        guard let url = Bundle.main.url(forResource: "room-recording-books", withExtension: "mp4")
-        else
-        {
-            print("Error loading video")
-            return nil
-        }
-
-        // AVPlayer instance to control the playback of the
-        // video.
-        let avPlayer = AVPlayer(url: url)
-
-        // Instantiate and configure video material
-        let videoMaterial = VideoMaterial(avPlayer: avPlayer)
-
-        // iniates playback of the video
-        avPlayer.play()
-
-        // returns the VideoMaterial object
-        return videoMaterial
-    }
-
-    /* Temporary Image Function until 360 video of room is provided */
-    /*func generateImageMaterial() -> UnlitMaterial? {
-        guard let texture = try? TextureResource.load(
-            named: "dam_road.jpg"
-        ) else {
-            print("Failed to load panorama")
-            return nil
-        }
-        var material = UnlitMaterial()
-        material.color = .init(texture: .init(texture))
-
-        return material
-    }*/
-
-    /* Skybox creation */
-    func generateSkyBox() -> Entity?
-    {
-        /*
-         creates a spherical mesh for the skybox with a radius of 1000 units.
-         Starts by generating a spherical mesh, mesh is designed with a radius of 1000 units,
-         providing a wide and immersive backdrop for the scene
-         */
-        let skyBoxMesh = MeshResource.generateSphere(radius: 1000)
-
-        /*
-        make skybox dynamic, video material
-         */
-        guard let videoMaterial = generateVideoMaterial()
-        else
-        {
-            return nil
-        }
-
-        /*
-        Entity is constructed by combining the previously generated spherical mesh and the video material
-         */
-        let skyBoxEntity = ModelEntity(mesh: skyBoxMesh, materials: [videoMaterial])
-
-        // Get skybox to appear correctly in scene
-        skyBoxEntity.scale *= .init(x: -1, y: 1, z: 1)
-
-        return skyBoxEntity
-    }
 
     /// A simple placeholder table: a flat tabletop slab plus four legs,
     /// positioned at `tablePosition` (XZ) with its top surface at
@@ -483,9 +419,9 @@ struct ImmersiveView: View {
         return sky
     }
     
-    private func loadVideo(_ name: String) -> AVPlayerItem? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "mp4") else {
-            print("Missing video: \(name)")
+    private func loadVideo(_ filename: String) -> AVPlayerItem? {
+        guard let url = Bundle.main.url(forResource: filename, withExtension: "mp4") else {
+            print("Missing video: \(filename)")
             return nil
         }
         let item = AVPlayerItem(url: url)
@@ -543,7 +479,7 @@ struct ImmersiveView: View {
         await fade(to: 0)
 
         let resumeTime = skyPlayer.currentTime()
-        if let item = loadVideo(vp.videoName) {
+        if (loadVideo(vp.videoName)) != nil {
             _ = await skyPlayer.seek(to: resumeTime)
             skyPlayer.play()
 
