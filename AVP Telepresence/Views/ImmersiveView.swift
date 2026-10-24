@@ -19,10 +19,10 @@ struct Viewpoint: Identifiable, Equatable {
     
     // found out this doesn't require exact folder path. Just needs video name
     static let all: [Viewpoint] = [
-        .init(id: "a", videoName: "table-view1", position: [0,0,0], yaw: 0),
-        .init(id: "b", videoName: "table-view2", position: [1.5,0,-1], yaw: 0),
-        .init(id: "c", videoName: "sudoku1", position: [-1.5,0,-1], yaw: 0),
-        .init(id: "d", videoName: "sudoku2", position: [0, 1, 0], yaw: 0)
+        .init(id: "a", videoName: "table-view1", position: [0,0,0], yaw: 0), // origin starting point
+        .init(id: "b", videoName: "table-view2", position: [4,0,0], yaw: 0), // table view across from the origin start pos
+        .init(id: "c", videoName: "sudoku1", position: [0,-1.0,-4.0], yaw: 0), // first sudoku that is the first one to the left of the origin starting point
+        .init(id: "d", videoName: "sudoku2", position: [4, 0, -4.0], yaw: 0) // second sudoku board to the right when user first looks left
     ]
     
 }
@@ -389,6 +389,8 @@ struct ImmersiveView: View {
         var material = UnlitMaterial()
         if let texture = try? TextureResource.load(named: piece.imageName) {
             material.color = .init(texture: .init(texture))
+        } else {
+            print("FAILED TO LOAD TEXTURE: \(piece.imageName)");
         }
         material.blending = .transparent(opacity: .init(scale: 1.0))
 
@@ -440,6 +442,9 @@ struct ImmersiveView: View {
         }
     }
     
+    /**
+     @brief creates teleportation markers which allows users to navigate to different positions in the space
+     */
     private func makeHotspot(for vp: Viewpoint) -> Entity {
         let root = Entity()
         root.name = "hotspot_\(vp.id)"
