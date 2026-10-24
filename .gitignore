@@ -1,0 +1,7 @@
+// video files
+*.mp4
+
+// user-specifc files
+xcuserdata/
+*.pbxuser
+

@@ -1,6 +1,11 @@
 import Foundation
 import simd
 
+/**
+ Description: takes data from the PuzzleGenio export of the puzzle img and handles how the pieces connect with one another within vision pro
+ Author: Jacob Salgado
+ */
+
 /// Matches PuzzleGenio's exported layout.json shape directly. Extra JSON
 /// keys we don't need (label, connections, version, generatedAt) are
 /// simply ignored by Codable — no need to declare them.
@@ -11,6 +16,7 @@ struct PieceBounds: Codable {
     let height: Double
 }
 
+/// Info on the individual puzzle piece data in terms of exact location
 struct PuzzlePieceData: Codable {
     let id: String
     let row: Int   // PuzzleGenio calls this gridY
