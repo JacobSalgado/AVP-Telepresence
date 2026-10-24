@@ -1,7 +1,18 @@
-// video files
+# video files
 *.mp4
 
-// user-specifc files
+# user-specifc files
 xcuserdata/
 *.pbxuser
+*.xcuserstate
 
+# build output
+build/
+DerivedData/
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
