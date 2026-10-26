@@ -11,6 +11,25 @@ import Combine
 import RealityKit
 import Foundation
 
+enum TableSeat: String, SpatialTemplateRole {
+    case a, b
+    var roleIdentifier: String { rawValue }
+}
+
+/// .app =  the template's anchor point. Treated as the table center
+struct TableTemplate: SpatialTemplate {
+    let elements: [any SpatialTemplateElement] = [
+        .seat(position: TableTemplate.offset("a"), direction: .lookingAt(.app), role: TableSeat.a),
+        .seat(position: TableTemplate.offset("b"), direction: .lookingAt(.app), role: TableSeat.b),
+            ]
+    
+    /// seat position relative to the table center, from Viewpoint.all
+    static func offset(_ id: String) -> SpatialTemplateElementPosition {
+            let p = Viewpoint.all.first { $0.id == id }!.position - RoomLayout.tableCenter
+            return .app.offsetBy(x: Double(p.x), z: Double(p.z))
+        }
+}
+
 @Observable
 class SessionManager {
     var appModel: AppModel?
@@ -32,27 +51,26 @@ class SessionManager {
     private var subscriptions = Set<AnyCancellable>()
     private var tasks = Set<Task<Void, Never>>()
     
+    var systemCoordinator: SystemCoordinator?
+    
     func configureSession(_ session: GroupSession<CollabActivity>){
         self.session = session
         
         let messenger = GroupSessionMessenger(session: session)
         self.messenger = messenger
         
-        Task {
+        
+        
+        Task { @MainActor in
             guard let coordinator = await session.systemCoordinator else {return}
-            
             var config = SystemCoordinator.Configuration()
-            
-            // show personas when immersive space is open
             config.supportsGroupImmersiveSpace = true
-            
-            // put participants across from each other
-            // alt. options: .none, .sidebyside, .surround
-            config.spatialTemplatePreference = .sideBySide
-            
+            config.spatialTemplatePreference = .custom(TableTemplate())
             coordinator.configuration = config
+            self.systemCoordinator = coordinator
             
-            //
+            appModel?.isShared = true
+            if let seat = appModel?.mySeat {takeSeat(seat)}
         }
         
         // track all the participants
@@ -165,6 +183,11 @@ class SessionManager {
         case .tileSudokuUpdated(let placed):
             tileSudokuModel?.applyRemote(placed: placed)
         }
+    }
+    @MainActor
+    func takeSeat(_ id: String) {
+        guard let role = TableSeat(rawValue: id) else {return}
+        systemCoordinator?.assignRole(role)
     }
 }
 

@@ -9,6 +9,7 @@ import SwiftUI
 import RealityKit
 import RealityKitContent
 import AVFoundation
+import ARKit
 import Combine
 
 struct Viewpoint: Identifiable, Equatable {
@@ -62,7 +63,7 @@ struct ImmersiveView: View {
     // JIGSAW TABLE: positioned off to the side so it doesn't overlap the
     // whiteboard, at typical table height.
     private let tableHeight: Float = 0.75
-    private let tablePosition: SIMD3<Float> = [1.2, 0.5, -0.4] // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
+    private let tablePosition = RoomLayout.tableCenter // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
     private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.28m puzzle board
     private let tableThickness: Float = 0.04
 
@@ -71,18 +72,24 @@ struct ImmersiveView: View {
     private let referenceCardWidth: Float = 0.22
     private let referenceCardSideMargin: Float = 0.06 // gap from the table's edge
     private let referenceCardTiltDegrees: Float = 12   // slight backward lean for readability
+     
+    @State private var anchorHead: SIMD3<Float> = [0, 1.5, 0]
 
     var body: some View {
         RealityView { content, attachments in
-            if let immersiveContentEntity = try? await Entity(named: "Immersive", in: realityKitContentBundle) {
-                content.add(immersiveContentEntity)
-                
                 // world root entities
                 let sky = makeSkyBox(player: skyPlayer)
                 skyBox = sky
                 content.add(sky)
+                content.add(makeAxes(0.5))
                 content.add(worldRoot)
-
+                
+                // calibration panel goes on content, NOT worldRoot, so it stays put while the room moves
+            if let panel = attachments.entity(for: "calibration") {
+                panel.position = [0.45, 1.2, -0.8] // slightly right, chest height
+                content.add(panel)
+            }
+            
                 if let whiteboard = attachments.entity(for: "whiteboard") {
                     whiteboard.name = "whiteboard"
                     whiteboard.position = whiteboardPosition
@@ -95,6 +102,17 @@ struct ImmersiveView: View {
                 puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
                 worldRoot.addChild(puzzleAnchor)
                 
+                // room origin
+                worldRoot.addChild(makeAxes(0.5))
+                
+                // each capture's position and facing
+                for vp in Viewpoint.all {
+                    let a = makeAxes()
+                    a.position = [vp.position.x, 0.02, vp.position.z]
+                    a.orientation = simd_quatf(angle: vp.yaw, axis: [0,1,0])
+                    worldRoot.addChild(a)
+                }
+                
                 /**
                  * @brief This iterates through the 360-degree images list and selects which one to play
                  */
@@ -104,10 +122,19 @@ struct ImmersiveView: View {
                     worldRoot.addChild(hotspot)
                 }
                 
+                // ground truth
+                let truth = ModelEntity(mesh: .generateSphere(radius: 0.04), materials: [UnlitMaterial(color: .magenta)])
+                truth.position = [1.20, 0.75, -2.10]
+                worldRoot.addChild(truth)
+                
+                appModel.loadCalibration()
+                await appModel.startTracking()
+                anchorHead = await appModel.waitForHeadPosition()
+                enterSeatIfShared()
                 _ = loadVideo(currentViewpoint.videoName)
                 skyPlayer.play()
-                applyViewpoint(currentViewpoint)
-            }
+                refreshView()
+            
             
             
         }
@@ -125,6 +152,10 @@ struct ImmersiveView: View {
             Attachment(id: "whiteboard") {
                 WhiteboardView()
             }
+                Attachment(id: "calibration") {
+                    CalibrationPanel()
+                }
+            
         }
         .task {
             guard !hasLoadedPuzzle else { return }
@@ -261,6 +292,16 @@ struct ImmersiveView: View {
                     Task {await travel (to: vp)}
                 }
         )
+        .onChange(of: appModel.calibration) {
+            refreshView(log: false)         // slider moved: re-apply the pose
+        }
+        .onChange(of: appModel.isShared) {
+            // SharePlay can finish configuring after the space is already open
+            enterSeatIfShared()
+            _ = loadVideo(currentViewpoint.videoName)
+            skyPlayer.play()
+            refreshView()
+        }
     }
 
     /// A simple placeholder table: a flat tabletop slab plus four legs,
@@ -271,13 +312,11 @@ struct ImmersiveView: View {
         let table = Entity()
         table.name = "puzzleTable"
 
-        let woodMaterial = SimpleMaterial(color: .init(red: 0.45, green: 0.30, blue: 0.18, alpha: 1.0),
-                                           roughness: 0.6, isMetallic: false)
+        let woodMaterial = SimpleMaterial(color: .init(red: 0.85, green: 0.75, blue: 0.60, alpha: 1.0),
+                                          roughness: 0.5, isMetallic: false)
 
         // Tabletop slab, centered so its TOP face sits at tableHeight.
-        let topMesh = MeshResource.generateBox(width: tableTopSize.x,
-                                                height: tableThickness,
-                                                depth: tableTopSize.y)
+        let topMesh = MeshResource.generateCylinder(height: 0.1, radius: 1.0)
         let top = ModelEntity(mesh: topMesh, materials: [woodMaterial])
         top.position = [tablePosition.x,
                          tableHeight - tableThickness / 2,
@@ -389,8 +428,6 @@ struct ImmersiveView: View {
         var material = UnlitMaterial()
         if let texture = try? TextureResource.load(named: piece.imageName) {
             material.color = .init(texture: .init(texture))
-        } else {
-            print("FAILED TO LOAD TEXTURE: \(piece.imageName)");
         }
         material.blending = .transparent(opacity: .init(scale: 1.0))
 
@@ -434,12 +471,15 @@ struct ImmersiveView: View {
     }
     
     // shift the room opposite to the camera so content stays pinned to the real room
-    private func applyViewpoint(_ vp: Viewpoint) {
-        worldRoot.position = [-vp.position.x, 0, -vp.position.z]
-        skyBox?.orientation = simd_quatf(angle: vp.yaw, axis: [0,1,0])
-        for (id, hotspot) in interaction.hotspotEntities {
-            hotspot.isEnabled = (id != vp.id) // hide one you're standing on
-        }
+    private func applyViewpoint(_ vp: Viewpoint, head: SIMD3<Float>, log: Bool = true) {
+        let pose = appModel.pose(forID: vp.id)
+            let worldFromHead = Transform(translation: [head.x, pose.floor, head.z]).matrix
+            let roomFromCapture = Transform(rotation: simd_quatf(angle: pose.yawDegrees * .pi / 180, axis: [0, 1, 0]),
+                                            translation: [pose.x, 0, pose.z]).matrix
+            worldRoot.transform = Transform(matrix: worldFromHead * roomFromCapture.inverse)
+            skyBox?.position = head
+            skyBox?.orientation = simd_quatf()
+            for (id, hotspot) in interaction.hotspotEntities { hotspot.isEnabled = (id != vp.id) }
     }
     
     /**
@@ -476,6 +516,58 @@ struct ImmersiveView: View {
             try? await Task.sleep(for: .seconds(duration / Double(steps)))
         }
     }
+
+    
+    private func makeAxes (_ len: Float = 0.3) -> Entity {
+        let root = Entity()
+        let t: Float = 0.01
+        for (size, pos, color) in [
+            (SIMD3<Float>(len, t, t), SIMD3<Float>(len/2, 0,0), UIColor.red), // +x
+            (SIMD3<Float>(t, len, t), SIMD3<Float>(0, len/2, 0), UIColor.green), // +y
+            (SIMD3<Float>(t, t, len), SIMD3<Float>(0, 0, -len/2), UIColor.blue) // +y
+        ] {
+            let e = ModelEntity(mesh: .generateBox(size: size), materials: [UnlitMaterial(color: color)])
+            e.position = pos
+            root.addChild(e)
+        }
+        return root
+    }
+    
+    private func enterSeatIfShared() {
+        guard appModel.isShared,
+              let vp = Viewpoint.all.first(where: { $0.id == appModel.mySeat }) else { return }
+        currentViewpoint = vp
+    }
+
+    private func refreshView(log: Bool = true) {
+        appModel.currentViewpointID = currentViewpoint.id
+        if appModel.isShared { applySeat(currentViewpoint, log: log) }
+        else { applyViewpoint(currentViewpoint, head: anchorHead, log: log) }
+    }
+
+    /// SHARED: room is fixed and identical on every device; only the video differs
+    private func applySeat(_ vp: Viewpoint, log: Bool) {
+        let c = RoomLayout.tableCenter
+        worldRoot.transform = Transform(translation: [-c.x, 0, -c.z])   // table center lands on the template's .app
+
+        let pose = appModel.pose(forID: vp.id)
+        skyBox?.position = .zero   // with a 1000 m sphere, being a meter off-center is a ~0.06° error
+        skyBox?.orientation = simd_quatf(angle: pose.yawDegrees * .pi / 180, axis: [0, 1, 0])
+
+        for hotspot in interaction.hotspotEntities.values { hotspot.isEnabled = false }
+
+        // the system needs a moment to move you into your seat
+        if log { Task { try? await Task.sleep(for: .seconds(2)); seatLog(vp) } }
+    }
+
+    // The key realism check: is your head where the camera was?
+    private func seatLog(_ vp: Viewpoint) {
+        guard let head = appModel.headPosition() else { print("no head pose yet"); return }
+        let h = worldRoot.convert(position: head, from: nil)   // head in room coordinates
+        let p = appModel.pose(forID: vp.id)
+        let off = simd_distance(SIMD2(h.x, h.z), SIMD2(p.x, p.z))
+        print("seat \(vp.id): head (\(h.x), \(h.z)) vs capture (\(p.x), \(p.z)) → off by \(off) m, eye height \(h.y) m")
+    }
     
     @MainActor
     private func travel(to vp: Viewpoint) async {
@@ -491,7 +583,8 @@ struct ImmersiveView: View {
             skyPlayer.play()
 
             currentViewpoint = vp
-            applyViewpoint(vp)
+            anchorHead = appModel.headPosition() ?? anchorHead
+            refreshView()
         }
 
         await fade(to: 1)

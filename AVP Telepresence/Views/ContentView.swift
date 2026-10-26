@@ -23,6 +23,13 @@ struct ContentView: View {
     @Environment(SessionManager.self) private var sessionManager
 
     var body: some View {
+        @Bindable var model = appModel
+        Picker("Seat", selection: $model.mySeat) {
+            Text("A (host)").tag("a")
+            Text("B (guest)").tag("b")
+        }
+        .pickerStyle(.segmented)
+        
         ZStack {
             backgroundGlow
             mainContent
