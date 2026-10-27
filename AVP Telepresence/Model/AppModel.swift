@@ -50,6 +50,9 @@ class AppModel {
     var mySeat = "a"            // set per headset before joining: "a" = host, "b" = guest
     var isShared = false        // true once SharePlay has configured the group immersive space
     
+    var worldFromRoom: simd_float4x4 = matrix_identity_float4x4 // mirrors worldRoot.transform
+    var roomOpacity: Float = 1                                  // mirrors teleport fade
+    
     func saveCalibration() {
         if let data = try? JSONEncoder().encode(calibration) {
             UserDefaults.standard.set(data, forKey: key)

@@ -59,18 +59,21 @@ class SessionManager {
         let messenger = GroupSessionMessenger(session: session)
         self.messenger = messenger
         
-        
+            
         
         Task { @MainActor in
-            guard let coordinator = await session.systemCoordinator else {return}
-            var config = SystemCoordinator.Configuration()
-            config.supportsGroupImmersiveSpace = true
-            config.spatialTemplatePreference = .custom(TableTemplate())
-            coordinator.configuration = config
-            self.systemCoordinator = coordinator
-            
-            appModel?.isShared = true
-            if let seat = appModel?.mySeat {takeSeat(seat)}
+            guard let coordinator = await session.systemCoordinator else {
+                    print("⚠️ no systemCoordinator — spatial Personas/template unavailable"); return
+                }
+                var config = SystemCoordinator.Configuration()
+                config.supportsGroupImmersiveSpace = true
+                config.spatialTemplatePreference = .custom(TableTemplate())
+                coordinator.configuration = config
+                self.systemCoordinator = coordinator
+                print("✅ coordinator configured, seat = \(appModel?.mySeat ?? "nil")")
+
+                appModel?.isShared = true
+                if let seat = appModel?.mySeat { takeSeat(seat) }
         }
         
         // track all the participants

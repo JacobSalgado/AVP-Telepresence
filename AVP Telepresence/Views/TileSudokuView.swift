@@ -21,6 +21,8 @@ struct TileSudokuView: View {
     @State private var trayRoot = Entity()    // the 1-9 source tiles
 
     @State private var interaction = TileInteractionState()
+    
+    @State private var roomRoot = Entity() // follows ImmersiveView's worldRoot
 
     // MARK: Placement in the immersive space
     // Placed to the LEFT of the drawing whiteboard (which is at x=0),
@@ -37,7 +39,10 @@ struct TileSudokuView: View {
 
     var body: some View {
         RealityView { content in
-            boardRoot.position = boardPosition
+            roomRoot.transform = Transform(matrix: appModel.worldFromRoom)
+            content.add(roomRoot)
+            
+            boardRoot.position = boardPosition // now in ROOM coordinates (origin = viewpoint A)
             content.add(boardRoot)
 
             buildBoard()
@@ -48,6 +53,12 @@ struct TileSudokuView: View {
             // Reconcile placed-tile entities against the model (covers both
             // local edits and remote updates funneled through the model).
             reconcilePlacedTiles()
+        }
+        .onChange(of: appModel.worldFromRoom) {
+            roomRoot.transform = Transform(matrix: appModel.worldFromRoom)
+        }
+        .onChange(of: appModel.roomOpacity) {
+            roomRoot.components.set(OpacityComponent(opacity: appModel.roomOpacity))
         }
         .task {
             guard !hasSetup else { return }

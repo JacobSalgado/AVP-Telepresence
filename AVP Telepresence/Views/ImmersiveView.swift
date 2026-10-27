@@ -63,8 +63,8 @@ struct ImmersiveView: View {
     // JIGSAW TABLE: positioned off to the side so it doesn't overlap the
     // whiteboard, at typical table height.
     private let tableHeight: Float = 0.75
+    private let tableRadius: Float = 0.6
     private let tablePosition = RoomLayout.tableCenter // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
-    private let tableTopSize: SIMD2<Float> = [0.75, 0.65]     // width, depth — sized around the ~0.28m puzzle board
     private let tableThickness: Float = 0.04
 
     // Reference card: stands upright beside the table (not on top of it,
@@ -311,37 +311,23 @@ struct ImmersiveView: View {
     private func makeTableEntity() -> Entity {
         let table = Entity()
         table.name = "puzzleTable"
+        table.position = [tablePosition.x, 0, tablePosition.z] // children are relative to the table center
 
         let woodMaterial = SimpleMaterial(color: .init(red: 0.85, green: 0.75, blue: 0.60, alpha: 1.0),
                                           roughness: 0.5, isMetallic: false)
 
         // Tabletop slab, centered so its TOP face sits at tableHeight.
-        let topMesh = MeshResource.generateCylinder(height: 0.1, radius: 1.0)
+        let topMesh = MeshResource.generateCylinder(height: tableThickness, radius: tableRadius)
         let top = ModelEntity(mesh: topMesh, materials: [woodMaterial])
-        top.position = [tablePosition.x,
-                         tableHeight - tableThickness / 2,
-                         tablePosition.z]
+        top.position = [0, tableHeight - tableThickness / 2, 0]
         table.addChild(top)
 
         // Four legs running from the underside of the tabletop down to the floor.
-        let legThickness: Float = 0.05
         let legHeight = tableHeight - tableThickness
-        let legMesh = MeshResource.generateBox(width: legThickness, height: legHeight, depth: legThickness)
-
-        let insetX = tableTopSize.x / 2 - legThickness
-        let insetZ = tableTopSize.y / 2 - legThickness
-        let legOffsets: [SIMD2<Float>] = [
-            [ insetX,  insetZ], [ insetX, -insetZ],
-            [-insetX,  insetZ], [-insetX, -insetZ]
-        ]
-
-        for offset in legOffsets {
-            let leg = ModelEntity(mesh: legMesh, materials: [woodMaterial])
-            leg.position = [tablePosition.x + offset.x,
-                             legHeight / 2,
-                             tablePosition.z + offset.y]
-            table.addChild(leg)
-        }
+        let legMesh = MeshResource.generateCylinder(height: legHeight, radius: 0.05)
+        let pedestal = ModelEntity(mesh: legMesh, materials: [woodMaterial])
+        pedestal.position = [0, legHeight / 2, 0]
+        table.addChild(pedestal)
 
         return table
     }
@@ -403,7 +389,7 @@ struct ImmersiveView: View {
         // whiteboardPosition are set up elsewhere in this file — adjust
         // the X sign or swap to -Z placement if that doesn't match your
         // actual room layout once you see it in headset.
-        let cardX = tablePosition.x + tableTopSize.x / 2 + referenceCardSideMargin + referenceCardWidth / 2
+        let cardX = tablePosition.x + tableRadius + referenceCardSideMargin + referenceCardWidth / 2
         let cardY = tableHeight + cardHeight / 2
         let cardZ = tablePosition.z
         card.position = [cardX, cardY, cardZ]
@@ -513,6 +499,7 @@ struct ImmersiveView: View {
             let o = start + (target - start) * Float(i) / Float(steps)
             skyBox?.components.set(OpacityComponent(opacity: o))
             worldRoot.components.set(OpacityComponent(opacity: o))
+            appModel.roomOpacity = o
             try? await Task.sleep(for: .seconds(duration / Double(steps)))
         }
     }
@@ -543,6 +530,7 @@ struct ImmersiveView: View {
         appModel.currentViewpointID = currentViewpoint.id
         if appModel.isShared { applySeat(currentViewpoint, log: log) }
         else { applyViewpoint(currentViewpoint, head: anchorHead, log: log) }
+        appModel.worldFromRoom = worldRoot.transform.matrix
     }
 
     /// SHARED: room is fixed and identical on every device; only the video differs
