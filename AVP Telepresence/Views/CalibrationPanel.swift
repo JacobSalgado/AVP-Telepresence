@@ -31,6 +31,7 @@ struct CalibrationPanel: View {
                 Button("Print") { model.printPoses() }
                 Button("Save") { model.saveCalibration() }
             }
+            Toggle("Ghost table", isOn: $model.ghostTable)
         }
         .padding(24)
         .frame(width: 420)

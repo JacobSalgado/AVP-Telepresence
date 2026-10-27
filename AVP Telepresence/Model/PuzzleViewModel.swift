@@ -20,7 +20,7 @@ final class PuzzleViewModel: ObservableObject {
     /// Overall board size in meters. Adjust to taste for how big the
     /// puzzle should appear on the table. Aspect ratio is taken from
     /// layout.json's puzzle.width/height automatically.
-    let boardWidthMeters: Float = 0.28
+    let boardWidthMeters: Float = 0.45
     private(set) var boardSizeMeters: SIMD3<Float> = .zero
 
     /// Fires on every remote-applied update. ImmersiveView subscribes to
@@ -130,6 +130,7 @@ final class PuzzleViewModel: ObservableObject {
         } else {
             for m in group { m.isPlaced = false }
         }
+        checkSolved()
     }
 
     // MARK: - Remote sync
@@ -160,10 +161,14 @@ final class PuzzleViewModel: ObservableObject {
             }
         }
         remoteUpdates.send(RemotePuzzleUpdate(positions: groupPositions, isPlaced: isPlaced))
+        checkSolved()
     }
 
     private func checkSolved() {
-        isSolved = !pieces.isEmpty && pieces.allSatisfy { $0.isPlaced }
+        guard let first = pieces.first else { isSolved = false; return }
+        let root = find(first.id)
+        let solved = pieces.allSatisfy { find($0.id) == root }
+        if solved != isSolved { isSolved = solved }
     }
 
     /// Scatters pieces in a loose ring around the board, on the table

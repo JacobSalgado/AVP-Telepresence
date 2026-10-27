@@ -135,7 +135,14 @@ struct ImmersiveView: View {
                 skyPlayer.play()
                 refreshView()
             
+            if appModel.isShared { sessionManager.takeSeat(appModel.mySeat) }
             
+            if let advance = attachments.entity(for: "advance") {
+                advance.position = [tablePosition.x, tableHeight + 0.45, tablePosition.z]
+                advance.components.set(BillboardComponent())
+                advance.isEnabled = false
+                worldRoot.addChild(advance)
+            }
             
         }
         update: { content, attachments in
@@ -147,6 +154,7 @@ struct ImmersiveView: View {
                 puzzleAnchor.addChild(entity)
                 interaction.pieceEntities[piece.id] = entity
             }
+            attachments.entity(for: "advance")?.isEnabled = puzzleViewModel.isSolved && appModel.section == .jigsaw
         }
         attachments: {
             Attachment(id: "whiteboard") {
@@ -155,6 +163,15 @@ struct ImmersiveView: View {
                 Attachment(id: "calibration") {
                     CalibrationPanel()
                 }
+            Attachment(id: "advance") {
+                VStack(spacing: 12) {
+                    Text("Puzzle complete!").font(.title2.bold())
+                    Text("Continue together to the Sudoku boards.").font(.callout)
+                    Button("Continue") { advanceToSudoku() }
+                }
+                .padding(24)
+                .glassBackgroundEffect()
+            }
             
         }
         .task {
@@ -180,11 +197,6 @@ struct ImmersiveView: View {
                             // Drag ended (remotely) — restore full opacity
                             // and update grabbability to match placement.
                             setPieceOpacity(id: id, scale: 1.0)
-                            if isPlaced {
-                                entity.components.remove(InputTargetComponent.self)
-                            } else if entity.components[InputTargetComponent.self] == nil {
-                                entity.components.set(InputTargetComponent())
-                            }
                         } else {
                             // isPlaced == nil means someone else is still
                             // actively dragging this piece right now — show
@@ -251,12 +263,15 @@ struct ImmersiveView: View {
                     }
 
                     puzzleViewModel.handleDragEnded(draggedPiece: piece)
+                    let merged = puzzleViewModel.piecesInGroup(of: piece) // includes what is snapped to
+                    
+                    for member in merged {
+                        interaction.pieceEntities[member.id]?.position = member.currentPosition
+                    }
+                    sessionManager.sendPuzzleDragEnded(pieces: merged)
 
                     for member in group {
                         interaction.pieceEntities[member.id]?.position = member.currentPosition
-                        if member.isPlaced {
-                            interaction.pieceEntities[member.id]?.components.remove(InputTargetComponent.self)
-                        }
                     }
 
                     // Broadcast the final, settled state (position + placed)
@@ -302,6 +317,20 @@ struct ImmersiveView: View {
             skyPlayer.play()
             refreshView()
         }
+        .onChange(of: appModel.ghostTable) {
+            worldRoot.findEntity(named: "puzzleTable")?
+                .components.set(OpacityComponent(opacity: appModel.ghostTable ? 0.35 : 1))
+        }
+        .onChange(of: appModel.section) {
+            guard let vp = Viewpoint.all.first(where: { $0.id == appModel.mySeat }) else { return }
+            Task { await travel(to: vp)}
+        }
+        .onAppear {appModel.immersiveSpaceState = .open}
+        .onDisappear {
+            appModel.immersiveSpaceState = .closed
+            sessionManager.shouldBeImmersed = false
+        }
+        
     }
 
     /// A simple placeholder table: a flat tabletop slab plus four legs,
@@ -557,6 +586,13 @@ struct ImmersiveView: View {
         print("seat \(vp.id): head (\(h.x), \(h.z)) vs capture (\(p.x), \(p.z)) → off by \(off) m, eye height \(h.y) m")
     }
     
+    private func advanceToSudoku() {
+        guard appModel.section == .jigsaw else { return }
+        print("🧩 puzzle solved → advancing at \(Date())")   // study log
+        appModel.section = .sudoku
+        sessionManager.send(.advanceSection(StudySection.sudoku.rawValue))
+    }
+    
     @MainActor
     private func travel(to vp: Viewpoint) async {
         guard !isTraveling, vp.id != currentViewpoint.id else { return }
@@ -571,6 +607,7 @@ struct ImmersiveView: View {
             skyPlayer.play()
 
             currentViewpoint = vp
+            if appModel.isShared { sessionManager.takeSeat(vp.id) }        
             anchorHead = appModel.headPosition() ?? anchorHead
             refreshView()
         }

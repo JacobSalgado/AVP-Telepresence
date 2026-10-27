@@ -27,6 +27,19 @@ struct Calibration: Equatable, Codable {
 // single source of truth for where things are in the room frame (origin = viewpoint A's floor point)
 enum RoomLayout {
     static let tableCenter: SIMD3<Float> = [1.2, 0, -0.4] // TODO: measure real table's center from A's tripod spot
+    static let sudokuArea: SIMD3<Float> = [0.5, 0, -2.2]
+}
+
+enum StudyRole: String { case host, guest }
+
+enum StudySection: String, Codable {
+    case jigsaw, sudoku
+    func seat(for role: StudyRole) -> String {
+        switch self {
+        case .jigsaw: return role == .host ? "a" : "b"
+        case .sudoku: return role == .host ? "c" : "d"
+        }
+    }
 }
 
 /// Maintains app-wide state
@@ -47,11 +60,16 @@ class AppModel {
     
     private let key = "calibration"
     
-    var mySeat = "a"            // set per headset before joining: "a" = host, "b" = guest
+    var studyRole: StudyRole = .host
+    var section: StudySection = .jigsaw
+    var mySeat: String { section.seat(for: studyRole) }
+    
     var isShared = false        // true once SharePlay has configured the group immersive space
     
     var worldFromRoom: simd_float4x4 = matrix_identity_float4x4 // mirrors worldRoot.transform
     var roomOpacity: Float = 1                                  // mirrors teleport fade
+    
+    var ghostTable = false
     
     func saveCalibration() {
         if let data = try? JSONEncoder().encode(calibration) {

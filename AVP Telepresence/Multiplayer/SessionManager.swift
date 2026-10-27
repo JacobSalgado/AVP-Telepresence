@@ -12,7 +12,7 @@ import RealityKit
 import Foundation
 
 enum TableSeat: String, SpatialTemplateRole {
-    case a, b
+    case a, b, c, d
     var roleIdentifier: String { rawValue }
 }
 
@@ -21,7 +21,14 @@ struct TableTemplate: SpatialTemplate {
     let elements: [any SpatialTemplateElement] = [
         .seat(position: TableTemplate.offset("a"), direction: .lookingAt(.app), role: TableSeat.a),
         .seat(position: TableTemplate.offset("b"), direction: .lookingAt(.app), role: TableSeat.b),
+        .seat(position: TableTemplate.offset("c"), direction: .lookingAt(TableTemplate.sudoku), role: TableSeat.c),
+        .seat(position: TableTemplate.offset("d"), direction: .lookingAt(TableTemplate.sudoku), role: TableSeat.d),
             ]
+    
+    static var sudoku: SpatialTemplateElementPosition {
+        let p = RoomLayout.sudokuArea - RoomLayout.tableCenter
+        return .app.offsetBy(x: Double(p.x), z: Double(p.z))
+    }
     
     /// seat position relative to the table center, from Viewpoint.all
     static func offset(_ id: String) -> SpatialTemplateElementPosition {
@@ -78,7 +85,12 @@ class SessionManager {
         
         // track all the participants
         session.$activeParticipants
-            .sink { [weak self] in self?.participants = $0}
+            .sink { [weak self] newParticipants in
+                guard let self else {return}
+                let someoneJoined = newParticipants.count > self.participants.count
+                self.participants = newParticipants
+                if someoneJoined, self.shouldBeImmersed { self.send(.enterImmersiveSpace)}
+            }
             .store(in: &subscriptions)
         
         // receive messages from other participant
@@ -185,6 +197,8 @@ class SessionManager {
             puzzleViewModel?.applyRemoteDragEnded(groupPositions: positions, isPlaced: isPlaced)
         case .tileSudokuUpdated(let placed):
             tileSudokuModel?.applyRemote(placed: placed)
+        case .advanceSection(let raw):
+            if let s = StudySection(rawValue: raw) { appModel?.section = s }
         }
     }
     @MainActor
@@ -247,9 +261,10 @@ enum SceneMessage: Codable {
     case puzzlePieceDragging(groupPositions: [String: CodableVector3])
     case puzzlePieceDragEnded(groupPositions: [String: CodableVector3], isPlaced: Bool)
     case tileSudokuUpdated(placed: [String: Int])
+    case advanceSection(String)
     
     private enum CodingKeys: String, CodingKey {
-        case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced, tilePlaced
+        case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced, tilePlaced, section
     }
     
     func encode(to encoder: Encoder) throws {
@@ -278,6 +293,9 @@ enum SceneMessage: Codable {
         case .tileSudokuUpdated(let placed):
             try container.encode("tileSudokuUpdated", forKey: .type)
             try container.encode(placed, forKey: .tilePlaced)
+        case .advanceSection(let s):
+            try container.encode("advanceSection", forKey: .type)
+            try container.encode(s, forKey: .section)
         }
     }
     
@@ -308,6 +326,8 @@ enum SceneMessage: Codable {
         case "tileSudokuUpdated":
             let placed = try container.decode([String: Int].self, forKey: .tilePlaced)
             self = .tileSudokuUpdated(placed: placed)
+        case "advanceSection":
+            self = .advanceSection(try container.decode(String.self, forKey: .section))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,

@@ -10,7 +10,6 @@ import RealityKitContent
 import GroupActivities
 
 struct ContentView: View {
-    @State private var showImmersiveSpace = false
     @State private var glowPulse = false
     @State private var orbitAngle: Double = 0
     
@@ -21,12 +20,14 @@ struct ContentView: View {
     @Environment(\.dismissImmersiveSpace) var dismissImmersiveSpace
     @Environment(AppModel.self) private var appModel
     @Environment(SessionManager.self) private var sessionManager
+    
+    private var isImmersed: Bool { appModel.immersiveSpaceState == .open }
 
     var body: some View {
         @Bindable var model = appModel
-        Picker("Seat", selection: $model.mySeat) {
-            Text("A (host)").tag("a")
-            Text("B (guest)").tag("b")
+        Picker("Role", selection: $model.studyRole) {
+            Text("Host").tag(StudyRole.host)
+            Text("Guest").tag(StudyRole.guest)
         }
         .pickerStyle(.segmented)
         
@@ -35,15 +36,32 @@ struct ContentView: View {
             mainContent
         }
         .frame(width: 440, height: 580)
-        .onChange(of: sessionManager.shouldBeImmersed) { _, shouldBeImmersed in
-            guard shouldBeImmersed, !showImmersiveSpace else { return }
-            Task {
-                await openImmersiveSpace(id: appModel.immersiveSpaceID)
-                showImmersiveSpace = true
+        .onChange(of: sessionManager.shouldBeImmersed) { _, want in
+            Task { @MainActor in
+                switch (want, appModel.immersiveSpaceState) {
+                case (true, .closed):
+                    appModel.immersiveSpaceState = .inTransition
+                    // in a session: don't open until the group immersive space is configured
+                    if sessionManager.session != nil {
+                        for _ in 0..<40 where sessionManager.systemCoordinator == nil {
+                            try? await Task.sleep(for: .milliseconds(50))
+                        }
+                    }
+                    switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+                    case .opened: break
+                    default:
+                        appModel.immersiveSpaceState = .closed
+                        sessionManager.shouldBeImmersed = false
+                    }
+                case (false, .open):
+                    appModel.immersiveSpaceState = .inTransition
+                    await dismissImmersiveSpace()
+                default:
+                    break
+                }
             }
         }
     }
-    
     // ── Extracted background ────────────────────────────────────────
     private var backgroundGlow: some View {
         RadialGradient(
@@ -124,20 +142,14 @@ struct ContentView: View {
             }
 
             TelPresenceButton(
-                label: showImmersiveSpace ? "Exit Immersive Space" : "Enter Immersive Space",
-                icon: showImmersiveSpace ? "xmark.circle" : "globe",
+                label: isImmersed ? "Exit Immersive Space" : "Enter Immersive Space",
+                icon: isImmersed ? "xmark.circle" : "globe",
                 style: .primary
             ) {
-                if showImmersiveSpace {
-                    Task {
-                        await dismissImmersiveSpace()
-                        showImmersiveSpace = false
-                        sessionManager.requestExitImmersion()
-                    }
-                } else {
-                    sessionManager.requestImmersion()
-                }
+                if isImmersed { sessionManager.requestExitImmersion() }
+                else { sessionManager.requestImmersion() }
             }
+            .disabled(appModel.immersiveSpaceState == .inTransition)
         }
     }
     
@@ -145,10 +157,10 @@ struct ContentView: View {
     private var statusBadge: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(showImmersiveSpace ? Color.green : Color.white.opacity(0.3))
+                .fill(isImmersed ? Color.green : Color.white.opacity(0.3))
                 .frame(width: 6, height: 6)
-                .shadow(color: showImmersiveSpace ? .green : .clear, radius: 4)
-            Text(showImmersiveSpace ? "Space Active" : "Space Inactive")
+                .shadow(color: isImmersed ? .green : .clear, radius: 4)
+            Text(isImmersed ? "Space Active" : "Space Inactive")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .tracking(1.5)
                 .foregroundStyle(.white.opacity(0.5))
