@@ -42,8 +42,8 @@ struct TileSudokuView: View {
             roomRoot.transform = Transform(matrix: appModel.worldFromRoom)
             content.add(roomRoot)
             
-            boardRoot.position = boardPosition // now in ROOM coordinates (origin = viewpoint A)
-            content.add(boardRoot)
+            roomRoot.addChild(boardRoot)
+            applyBoardPlacement()
 
             buildBoard()
             buildTray()
@@ -60,6 +60,7 @@ struct TileSudokuView: View {
         .onChange(of: appModel.roomOpacity) {
             roomRoot.components.set(OpacityComponent(opacity: appModel.roomOpacity))
         }
+        .onChange(of: appModel.calibration.sudokuBoard) { applyBoardPlacement() }
         .task {
             guard !hasSetup else { return }
             hasSetup = true
@@ -126,7 +127,7 @@ struct TileSudokuView: View {
             let carried = makeTileEntity(value: value, name: "tile_carried")
             // Start at the tray tile's current world position.
             carried.setPosition(entity.position(relativeTo: nil), relativeTo: nil)
-            boardRoot.parent?.addChild(carried) // add to scene root so world-space moves are simple
+            boardRoot.addChild(carried)
             interaction.carried = carried
         } else if entity.name.hasPrefix("tile_placed_") {
             // Grabbing a placed tile: lift it OUT of its cell.
@@ -138,7 +139,7 @@ struct TileSudokuView: View {
             entity.removeFromParent()   // remove the in-cell entity
             let carried = makeTileEntity(value: value, name: "tile_carried")
             carried.setPosition(entity.position(relativeTo: nil), relativeTo: nil)
-            boardRoot.parent?.addChild(carried)
+            boardRoot.addChild(carried)
             interaction.carried = carried
         }
     }
@@ -338,6 +339,12 @@ struct TileSudokuView: View {
         let parts = suffix.split(separator: "_").compactMap { Int($0) }
         guard parts.count == 2 else { return nil }
         return (parts[0], parts[1])
+    }
+    
+    private func applyBoardPlacement() {
+        let b = appModel.calibration.sudokuBoard
+        boardRoot.position = [b.x, b.y, b.z]
+        boardRoot.orientation = simd_quatf(angle: b.yawDegrees * .pi / 180, axis: [0, 1, 0])
     }
 }
 

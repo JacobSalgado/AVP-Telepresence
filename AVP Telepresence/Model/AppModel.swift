@@ -20,13 +20,31 @@ struct ViewpointPose: Codable, Equatable {
     var floor: Float = 0
 }
 
+struct BoardPlacement: Codable, Equatable {
+    var x: Float = 1
+    var y: Float = 2.1
+    var z: Float = -1.2
+    var yawDegrees: Float = 0
+}
+
 struct Calibration: Equatable, Codable {
     var poses: [String: ViewpointPose] = [:] // keyed by Viewpoint.id
+    var roomFloor: Float = 0                 // global: lowers/raises ALL room content
+    var sudokuBoard = BoardPlacement()      // sticky-note board, room coordinates
+}
+
+extension Calibration {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        poses       = try c.decodeIfPresent([String: ViewpointPose].self, forKey: .poses) ?? [:]
+        roomFloor   = try c.decodeIfPresent(Float.self, forKey: .roomFloor) ?? 0
+        sudokuBoard = try c.decodeIfPresent(BoardPlacement.self, forKey: .sudokuBoard) ?? BoardPlacement()
+    }
 }
 
 // single source of truth for where things are in the room frame (origin = viewpoint A's floor point)
 enum RoomLayout {
-    static let tableCenter: SIMD3<Float> = [1.2, 0, -0.4] // TODO: measure real table's center from A's tripod spot
+    static let tableCenter: SIMD3<Float> = [1.9, -1.0, 0] // TODO: measure real table's center from A's tripod spot
     static let sudokuArea: SIMD3<Float> = [0.5, 0, -2.2]
 }
 

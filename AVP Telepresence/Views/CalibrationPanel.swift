@@ -31,6 +31,17 @@ struct CalibrationPanel: View {
                 Button("Print") { model.printPoses() }
                 Button("Save") { model.saveCalibration() }
             }
+            Divider()
+            Text("Room").font(.headline)
+            row("Room height", $model.calibration.roomFloor, -1.0...0.5, step: 0.01, unit: " m")
+            Toggle("Ghost table", isOn: $model.ghostTable)
+
+            Divider()
+            Text("Sticky-note board").font(.headline)
+            row("X", $model.calibration.sudokuBoard.x, -4...4, step: 0.02, unit: " m")
+            row("Y", $model.calibration.sudokuBoard.y, 0...3, step: 0.02, unit: " m")
+            row("Z", $model.calibration.sudokuBoard.z, -4...4, step: 0.02, unit: " m")
+            row("Yaw", $model.calibration.sudokuBoard.yawDegrees, -180...180, step: 1, unit: "°")
             Toggle("Ghost table", isOn: $model.ghostTable)
         }
         .padding(24)

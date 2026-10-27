@@ -63,15 +63,15 @@ struct ImmersiveView: View {
     // JIGSAW TABLE: positioned off to the side so it doesn't overlap the
     // whiteboard, at typical table height.
     private let tableHeight: Float = 0.75
-    private let tableRadius: Float = 0.6
+    private let tableRadius: Float = 2.0
     private let tablePosition = RoomLayout.tableCenter // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
     private let tableThickness: Float = 0.04
 
     // Reference card: stands upright beside the table (not on top of it,
     // so it doesn't compete with tabletop space where pieces scatter).
-    private let referenceCardWidth: Float = 0.22
-    private let referenceCardSideMargin: Float = 0.06 // gap from the table's edge
-    private let referenceCardTiltDegrees: Float = 12   // slight backward lean for readability
+    private let referenceCardWidth: Float = 0.6
+    private let referenceCardSideMargin: Float = 0.10 // gap from the table's edge
+    private let referenceCardLift: Float = 0.05         // gap between table height and the card's bottom edge
      
     @State private var anchorHead: SIMD3<Float> = [0, 1.5, 0]
 
@@ -393,44 +393,32 @@ struct ImmersiveView: View {
         // doesn't look stretched. Falls back to the puzzle board's own
         // aspect if the texture can't be loaded for some reason.
         var aspect: Float = 1.62
+        var material = UnlitMaterial()
+        
         if let texture = try? TextureResource.load(named: "puzzlePreview") {
             aspect = Float(texture.width) / Float(texture.height)
-        }
-        let cardHeight = referenceCardWidth / aspect
-
-        var material = UnlitMaterial()
-        if let texture = try? TextureResource.load(named: "puzzlePreview") {
             material.color = .init(texture: .init(texture))
         }
         material.blending = .opaque // reference image has no transparency to worry about
+        let cardHeight = referenceCardWidth / aspect
+        
+        let image = ModelEntity(mesh: .generatePlane(width: referenceCardWidth, height: cardHeight), materials: [material])
+        card.addChild(image)
 
-        // generatePlane(width:height:) is the UPRIGHT overload (XY-plane,
-        // facing +Z) — this is the one case where we actually want that,
-        // unlike the flat-on-the-table piece meshes.
-        let mesh = MeshResource.generatePlane(width: referenceCardWidth, height: cardHeight)
-        let imageEntity = ModelEntity(mesh: mesh, materials: [material])
-        card.addChild(imageEntity)
+        // "right of the table" as seen from viewpoint A
+            let a = Viewpoint.all[0].position
+            let toTable = simd_normalize(SIMD3<Float>(tablePosition.x - a.x, 0, tablePosition.z - a.z))
+            let right = simd_normalize(simd_cross(toTable, [0, 1, 0]))
 
-        // Position: just past the table's right-hand edge (+X), bottom
-        // edge resting at table height, centered on the table's depth.
-        // NOTE: "right-hand edge" assumes the user approaches the table
-        // from roughly the -Z direction, matching how tablePosition/
-        // whiteboardPosition are set up elsewhere in this file — adjust
-        // the X sign or swap to -Z placement if that doesn't match your
-        // actual room layout once you see it in headset.
-        let cardX = tablePosition.x + tableRadius + referenceCardSideMargin + referenceCardWidth / 2
-        let cardY = tableHeight + cardHeight / 2
-        let cardZ = tablePosition.z
-        card.position = [cardX, cardY, cardZ]
+            let offset = tableRadius + referenceCardSideMargin + referenceCardWidth / 2
+            card.position = [tablePosition.x + right.x * offset,
+                             tableHeight + referenceCardLift + cardHeight / 2,
+                             tablePosition.z + right.z * offset]
 
-        // Face back toward the table/user, with a slight backward tilt so
-        // it reads comfortably from a standing height looking down/across
-        // rather than dead-on. Adjust referenceCardTiltDegrees to taste.
-        let faceTowardTable = simd_quatf(angle: -.pi / 2, axis: [0, 1, 0])
-        let tiltBack = simd_quatf(angle: referenceCardTiltDegrees * .pi / 180, axis: [1, 0, 0])
-        card.transform.rotation = faceTowardTable * tiltBack
+            // turns to face whoever is looking, so it's readable from both seats
+            card.components.set(BillboardComponent())
 
-        return card
+            return card
     }
 
     private func makePieceEntity(for piece: PuzzlePiece) -> ModelEntity {
@@ -488,7 +476,7 @@ struct ImmersiveView: View {
     // shift the room opposite to the camera so content stays pinned to the real room
     private func applyViewpoint(_ vp: Viewpoint, head: SIMD3<Float>, log: Bool = true) {
         let pose = appModel.pose(forID: vp.id)
-            let worldFromHead = Transform(translation: [head.x, pose.floor, head.z]).matrix
+        let worldFromHead = Transform(translation: [head.x, appModel.calibration.roomFloor + pose.floor, head.z]).matrix
             let roomFromCapture = Transform(rotation: simd_quatf(angle: pose.yawDegrees * .pi / 180, axis: [0, 1, 0]),
                                             translation: [pose.x, 0, pose.z]).matrix
             worldRoot.transform = Transform(matrix: worldFromHead * roomFromCapture.inverse)
@@ -565,7 +553,7 @@ struct ImmersiveView: View {
     /// SHARED: room is fixed and identical on every device; only the video differs
     private func applySeat(_ vp: Viewpoint, log: Bool) {
         let c = RoomLayout.tableCenter
-        worldRoot.transform = Transform(translation: [-c.x, 0, -c.z])   // table center lands on the template's .app
+        worldRoot.transform = Transform(translation: [-c.x, appModel.calibration.roomFloor, -c.z])   // table center lands on the template's .app
 
         let pose = appModel.pose(forID: vp.id)
         skyBox?.position = .zero   // with a 1000 m sphere, being a meter off-center is a ~0.06° error
@@ -607,7 +595,7 @@ struct ImmersiveView: View {
             skyPlayer.play()
 
             currentViewpoint = vp
-            if appModel.isShared { sessionManager.takeSeat(vp.id) }        
+            if appModel.isShared { sessionManager.takeSeat(vp.id) }
             anchorHead = appModel.headPosition() ?? anchorHead
             refreshView()
         }
