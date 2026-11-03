@@ -28,14 +28,14 @@ struct Viewpoint: Identifiable, Equatable {
 }
 
 struct ImmersiveView: View {
-
+    
     @Environment(AppModel.self) private var appModel
     @Environment(SessionManager.self) private var sessionManager
-
+    
     // Puzzle data
     @StateObject private var puzzleViewModel = PuzzleViewModel()
     @State private var hasLoadedPuzzle = false
-
+    
     @State private var puzzleAnchor = Entity()
     // Shared across all pieces so their relative transparency draw order is
     // explicit and stable, instead of RealityKit's default per-entity
@@ -43,7 +43,7 @@ struct ImmersiveView: View {
     // heavily — see makePieceEntity).
     @State private var puzzleSortGroup = ModelSortGroup()
     @State private var interaction = PuzzleInteractionState()
-
+    
     // Throttle for how often we broadcast live drag positions. 15-20x/sec
     // is plenty smooth without flooding the messenger.
     private let dragBroadcastInterval: TimeInterval = 0.06
@@ -54,94 +54,94 @@ struct ImmersiveView: View {
     @State private var skyPlayer = AVPlayer()
     @State private var currentViewpoint = Viewpoint.all[0]
     @State private var isTraveling = false
-
+    
     // MARK: - Placement tuning
     // Sudoku/whiteboard: vertical, in front of the user, roughly eye level.
     private let whiteboardPosition: SIMD3<Float> = [0, 2.3, -2.2]
-
+    
     // JIGSAW TABLE: positioned off to the side so it doesn't overlap the
     // whiteboard, at typical table height.
     private let tableHeight: Float = 0.75
     private let tableRadius: Float = 2.0
     private let tablePosition = RoomLayout.tableCenter // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
     private let tableThickness: Float = 0.04
-
+    
     // Reference card: stands upright beside the table (not on top of it,
     // so it doesn't compete with tabletop space where pieces scatter).
     private let referenceCardWidth: Float = 0.6
     private let referenceCardSideMargin: Float = 0.10 // gap from the table's edge
     private let referenceCardLift: Float = 0.05         // gap between table height and the card's bottom edge
-     
+    
     @State private var anchorHead: SIMD3<Float> = [0, 1.5, 0]
     
     // this allows users to rotate the table
     @State private var turntable = Entity()
-
+    
     var body: some View {
         RealityView { content, attachments in
-                // world root entities
-                let sky = makeSkyBox(player: skyPlayer)
-                skyBox = sky
-                content.add(sky)
-                content.add(makeAxes(0.5))
-                content.add(worldRoot)
-                
-                // calibration panel goes on content, NOT worldRoot, so it stays put while the room moves
+            // world root entities
+            let sky = makeSkyBox(player: skyPlayer)
+            skyBox = sky
+            content.add(sky)
+            content.add(makeAxes(0.5))
+            content.add(worldRoot)
+            
+            // calibration panel goes on content, NOT worldRoot, so it stays put while the room moves
             if let panel = attachments.entity(for: "calibration") {
                 panel.position = [0.45, 1.2, -0.8] // slightly right, chest height
                 content.add(panel)
             }
             
-                if let whiteboard = attachments.entity(for: "whiteboard") {
-                    whiteboard.name = "whiteboard"
-                    whiteboard.position = whiteboardPosition
-                    whiteboard.scale = .one * 1.8
-                    worldRoot.addChild(whiteboard)
-                }
-                //worldRoot.addChild(makeTableEntity())
-                turntable.position = [tablePosition.x, 0, tablePosition.z] // tray sits at table's spot
-                worldRoot.addChild(turntable)
+            if let whiteboard = attachments.entity(for: "whiteboard") {
+                whiteboard.name = "whiteboard"
+                whiteboard.position = whiteboardPosition
+                whiteboard.scale = .one * 1.8
+                worldRoot.addChild(whiteboard)
+            }
+            //worldRoot.addChild(makeTableEntity())
+            turntable.position = [tablePosition.x, 0, tablePosition.z] // tray sits at table's spot
+            worldRoot.addChild(turntable)
             
-                worldRoot.addChild(makeReferenceCardEntity())
-                
-                //puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
-                //worldRoot.addChild(puzzleAnchor)
+            worldRoot.addChild(makeReferenceCardEntity())
+            
+            //puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
+            //worldRoot.addChild(puzzleAnchor)
             turntable.addChild(makeTableEntity())                       // table goes on tray
             puzzleAnchor.position = [0, tableHeight + 0.002, 0]         // pieces go on tray
             turntable.addChild(puzzleAnchor)
-                
-                // room origin
-                worldRoot.addChild(makeAxes(0.5))
-                
-                // each capture's position and facing
-                for vp in Viewpoint.all {
-                    let a = makeAxes()
-                    a.position = [vp.position.x, 0.02, vp.position.z]
-                    a.orientation = simd_quatf(angle: vp.yaw, axis: [0,1,0])
-                    worldRoot.addChild(a)
-                }
-                
-                /**
-                 * @brief This iterates through the 360-degree images list and selects which one to play
-                 */
-                for vp in Viewpoint.all {
-                    let hotspot = makeHotspot(for: vp)
-                    interaction.hotspotEntities[vp.id] = hotspot
-                    worldRoot.addChild(hotspot)
-                }
-                
-                // ground truth
-                let truth = ModelEntity(mesh: .generateSphere(radius: 0.04), materials: [UnlitMaterial(color: .magenta)])
-                truth.position = [1.20, 0.75, -2.10]
-                worldRoot.addChild(truth)
-                
-                appModel.loadCalibration()
-                await appModel.startTracking()
-                anchorHead = await appModel.waitForHeadPosition()
-                enterSeatIfShared()
-                _ = loadVideo(currentViewpoint.videoName)
-                skyPlayer.play()
-                refreshView()
+            
+            // room origin
+            worldRoot.addChild(makeAxes(0.5))
+            
+            // each capture's position and facing
+            for vp in Viewpoint.all {
+                let a = makeAxes()
+                a.position = [vp.position.x, 0.02, vp.position.z]
+                a.orientation = simd_quatf(angle: vp.yaw, axis: [0,1,0])
+                worldRoot.addChild(a)
+            }
+            
+            /**
+             * @brief This iterates through the 360-degree images list and selects which one to play
+             */
+            for vp in Viewpoint.all {
+                let hotspot = makeHotspot(for: vp)
+                interaction.hotspotEntities[vp.id] = hotspot
+                worldRoot.addChild(hotspot)
+            }
+            
+            // ground truth
+            let truth = ModelEntity(mesh: .generateSphere(radius: 0.04), materials: [UnlitMaterial(color: .magenta)])
+            truth.position = [1.20, 0.75, -2.10]
+            worldRoot.addChild(truth)
+            
+            appModel.loadCalibration()
+            await appModel.startTracking()
+            anchorHead = await appModel.waitForHeadPosition()
+            enterSeatIfShared()
+            _ = loadVideo(currentViewpoint.videoName)
+            skyPlayer.play()
+            refreshView()
             
             if appModel.isShared { sessionManager.takeSeat(appModel.mySeat) }
             
@@ -168,9 +168,9 @@ struct ImmersiveView: View {
             Attachment(id: "whiteboard") {
                 WhiteboardView()
             }
-                Attachment(id: "calibration") {
-                    CalibrationPanel()
-                }
+            Attachment(id: "calibration") {
+                CalibrationPanel()
+            }
             Attachment(id: "advance") {
                 VStack(spacing: 12) {
                     Text("Puzzle complete!").font(.title2.bold())
@@ -186,13 +186,12 @@ struct ImmersiveView: View {
             guard !hasLoadedPuzzle else { return }
             hasLoadedPuzzle = true
             puzzleViewModel.loadPuzzle()
-
+            
             // Hand SessionManager a reference so it can push incoming
             // network updates straight into the model.
             sessionManager.puzzleViewModel = puzzleViewModel
-
-            // Whenever a remote participant's drag updates our local model,
-            // animate the affected entities smoothly rather than snapping.
+            
+            // Block 1: remote PIECE drags (your original code, restored)
             puzzleViewModel.remoteUpdates
                 .sink { update in
                     for (id, position) in update.positions {
@@ -200,19 +199,23 @@ struct ImmersiveView: View {
                         var transform = entity.transform
                         transform.translation = position
                         entity.move(to: transform, relativeTo: entity.parent, duration: 0.08)
-
-                        if let isPlaced = update.isPlaced {
-                            // Drag ended (remotely) — restore full opacity
-                            // and update grabbability to match placement.
-                            setPieceOpacity(id: id, scale: 1.0)
+                        
+                        if update.isPlaced != nil {
+                            setPieceOpacity(id: id, scale: 1.0)    // remote drag ended
                         } else {
-                            // isPlaced == nil means someone else is still
-                            // actively dragging this piece right now — show
-                            // it semi-transparent here too, mirroring what
-                            // they see locally on their own drag.
-                            setPieceOpacity(id: id, scale: 0.55)
+                            setPieceOpacity(id: id, scale: 0.55)   // remote drag in progress
                         }
                     }
+                }
+                .store(in: &interaction.cancellables)
+            
+            // Block 2: remote TABLE spins (new)
+            puzzleViewModel.remoteTableYaw
+                .sink { yaw in
+                    interaction.tableYaw = yaw   // remember it, so if I spin next I start from here
+                    var t = turntable.transform
+                    t.rotation = simd_quatf(angle: yaw, axis: [0, 1, 0])
+                    turntable.move(to: t, relativeTo: turntable.parent, duration: 0.08)
                 }
                 .store(in: &interaction.cancellables)
         }
@@ -230,7 +233,7 @@ struct ImmersiveView: View {
                     } else if value.entity.name.hasPrefix("piece_"),
                               let piece = pieceForEntity(value.entity) {
                         let group = puzzleViewModel.piecesInGroup(of: piece)
-
+                        
                         if interaction.dragStartPositions[piece.id] == nil {
                             for member in group {
                                 interaction.dragStartPositions[member.id] = member.currentPosition
@@ -241,9 +244,9 @@ struct ImmersiveView: View {
                                 setPieceOpacity(id: member.id, scale: 0.55)
                             }
                         }
-
+                        
                         let translation3D = value.convert(value.translation3D, from: .local, to: value.entity.parent!)
-
+                        
                         for member in group {
                             guard let start = interaction.dragStartPositions[member.id] else { continue }
                             var newPos = start + translation3D
@@ -251,7 +254,7 @@ struct ImmersiveView: View {
                             member.currentPosition = newPos
                             interaction.pieceEntities[member.id]?.position = newPos
                         }
-
+                        
                         // Throttled broadcast so remote participants see this
                         // drag happening live, without flooding the messenger.
                         let now = Date()
@@ -266,18 +269,19 @@ struct ImmersiveView: View {
                 .onEnded { value in
                     if value.entity.name == "tableTop" {
                         interaction.spinLastAngle = nil        // next grab starts fresh, no jump
+                        sessionManager.send(.tableRotated(yaw: interaction.tableYaw))
                         return
                     }
                     
                     guard value.entity.name.hasPrefix("piece_"),
                           let piece = pieceForEntity(value.entity) else {return}
-
+                    
                     let group = puzzleViewModel.piecesInGroup(of: piece)
                     for member in group {
                         interaction.dragStartPositions[member.id] = nil
                         setPieceOpacity(id: member.id, scale: 1.0)
                     }
-
+                    
                     puzzleViewModel.handleDragEnded(draggedPiece: piece)
                     let merged = puzzleViewModel.piecesInGroup(of: piece) // includes what is snapped to
                     
@@ -285,11 +289,11 @@ struct ImmersiveView: View {
                         interaction.pieceEntities[member.id]?.position = member.currentPosition
                     }
                     sessionManager.sendPuzzleDragEnded(pieces: merged)
-
+                    
                     for member in group {
                         interaction.pieceEntities[member.id]?.position = member.currentPosition
                     }
-
+                    
                     // Broadcast the final, settled state (position + placed)
                     // so remote clients land in exactly the same spot.
                     sessionManager.sendPuzzleDragEnded(pieces: group)
@@ -312,7 +316,7 @@ struct ImmersiveView: View {
                     let entity = value.entity
                     entity.scale = .one * Float(value.magnification)
                 }
-            )
+        )
         .simultaneousGesture(
             TapGesture()
                 .targetedToAnyEntity()
@@ -348,7 +352,7 @@ struct ImmersiveView: View {
         }
         
     }
-
+    
     /// A simple placeholder table: a flat tabletop slab plus four legs,
     /// positioned at `tablePosition` (XZ) with its top surface at
     /// `tableHeight`. Swap the materials for something nicer once you have
@@ -358,10 +362,10 @@ struct ImmersiveView: View {
         table.name = "puzzleTable"
         //table.position = [tablePosition.x, 0, tablePosition.z] // children are relative to the table center
         table.position = .zero
-
+        
         let woodMaterial = SimpleMaterial(color: .init(red: 0.85, green: 0.75, blue: 0.60, alpha: 1.0),
                                           roughness: 0.5, isMetallic: false)
-
+        
         // Tabletop slab, centered so its TOP face sits at tableHeight.
         let topMesh = MeshResource.generateCylinder(height: tableThickness, radius: tableRadius)
         let top = ModelEntity(mesh: topMesh, materials: [woodMaterial])
@@ -371,14 +375,14 @@ struct ImmersiveView: View {
         top.name = "tableTop"
         top.components.set(InputTargetComponent())
         top.generateCollisionShapes(recursive: false)
-
+        
         // Four legs running from the underside of the tabletop down to the floor.
         let legHeight = tableHeight - tableThickness
         let legMesh = MeshResource.generateCylinder(height: legHeight, radius: 0.05)
         let pedestal = ModelEntity(mesh: legMesh, materials: [woodMaterial])
         pedestal.position = [0, legHeight / 2, 0]
         table.addChild(pedestal)
-
+        
         return table
     }
     
@@ -386,7 +390,7 @@ struct ImmersiveView: View {
         // where is the hand in the room (measured against the room, not the tray,
         // because tray is moving under the hand)
         let hand = value.convert(value.location3D, from: .local, to: worldRoot)
-    
+        
         let angle = atan2(hand.x - turntable.position.x, hand.z - turntable.position.z)
         
         if let last = interaction.spinLastAngle {
@@ -400,8 +404,14 @@ struct ImmersiveView: View {
             turntable.orientation = simd_quatf(angle: interaction.tableYaw, axis: [0,1,0])
         }
         interaction.spinLastAngle = angle
+        
+        let now = Date()
+        if now.timeIntervalSince(interaction.lastSpinBroadcast) >= dragBroadcastInterval {
+            interaction.lastSpinBroadcast = now
+            sessionManager.send(.tableRotated(yaw: interaction.tableYaw))
+        }
     }
-
+    
     /// Adjusts how see-through a piece is at runtime. Used to make the
     /// piece(s) currently being dragged (locally or by a remote
     /// participant) partially transparent, so alignment against whatever's
@@ -421,7 +431,7 @@ struct ImmersiveView: View {
         entity.model?.materials = [material]
         interaction.currentOpacity[id] = scale
     }
-
+    
     /// A standing reference card showing the assembled puzzle image, placed
     /// just beside the table (not on its surface) so it doesn't compete
     /// with the tabletop space pieces scatter across. Add the preview
@@ -429,7 +439,7 @@ struct ImmersiveView: View {
     private func makeReferenceCardEntity() -> Entity {
         let card = Entity()
         card.name = "referenceCard"
-
+        
         // Match the card's aspect ratio to the preview image itself so it
         // doesn't look stretched. Falls back to the puzzle board's own
         // aspect if the texture can't be loaded for some reason.
@@ -445,36 +455,36 @@ struct ImmersiveView: View {
         
         let image = ModelEntity(mesh: .generatePlane(width: referenceCardWidth, height: cardHeight), materials: [material])
         card.addChild(image)
-
+        
         // "right of the table" as seen from viewpoint A
-            let a = Viewpoint.all[0].position
-            let toTable = simd_normalize(SIMD3<Float>(tablePosition.x - a.x, 0, tablePosition.z - a.z))
-            let right = simd_normalize(simd_cross(toTable, [0, 1, 0]))
-
-            let offset = tableRadius + referenceCardSideMargin + referenceCardWidth / 2
-            card.position = [tablePosition.x + right.x * offset,
-                             tableHeight + referenceCardLift + cardHeight / 2,
-                             tablePosition.z + right.z * offset]
-
-            // turns to face whoever is looking, so it's readable from both seats
-            card.components.set(BillboardComponent())
-
-            return card
+        let a = Viewpoint.all[0].position
+        let toTable = simd_normalize(SIMD3<Float>(tablePosition.x - a.x, 0, tablePosition.z - a.z))
+        let right = simd_normalize(simd_cross(toTable, [0, 1, 0]))
+        
+        let offset = tableRadius + referenceCardSideMargin + referenceCardWidth / 2
+        card.position = [tablePosition.x + right.x * offset,
+                         tableHeight + referenceCardLift + cardHeight / 2,
+                         tablePosition.z + right.z * offset]
+        
+        // turns to face whoever is looking, so it's readable from both seats
+        card.components.set(BillboardComponent())
+        
+        return card
     }
-
+    
     private func makePieceEntity(for piece: PuzzlePiece) -> ModelEntity {
         print("Creating entity for piece \(piece.id)")
         // generatePlane(width:depth:) lies FLAT in the XZ-plane (normal +Y) —
         // this is the correct overload for "resting on a table." The other
         // overload, generatePlane(width:height:), stands upright instead.
         let mesh = MeshResource.generatePlane(width: piece.pieceSize.x, depth: piece.pieceSize.y)
-
+        
         var material = UnlitMaterial()
         if let texture = try? TextureResource.load(named: piece.imageName) {
             material.color = .init(texture: .init(texture))
         }
         material.blending = .transparent(opacity: .init(scale: 1.0))
-
+        
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.name = "piece_\(piece.id)"
         entity.position = piece.currentPosition
@@ -490,7 +500,7 @@ struct ImmersiveView: View {
         entity.generateCollisionShapes(recursive: false)
         return entity
     }
-
+    
     private func pieceForEntity(_ entity: Entity) -> PuzzlePiece? {
         guard entity.name.hasPrefix("piece_") else { return nil }
         let id = String(entity.name.dropFirst("piece_".count))
@@ -518,12 +528,12 @@ struct ImmersiveView: View {
     private func applyViewpoint(_ vp: Viewpoint, head: SIMD3<Float>, log: Bool = true) {
         let pose = appModel.pose(forID: vp.id)
         let worldFromHead = Transform(translation: [head.x, appModel.calibration.roomFloor + pose.floor, head.z]).matrix
-            let roomFromCapture = Transform(rotation: simd_quatf(angle: pose.yawDegrees * .pi / 180, axis: [0, 1, 0]),
-                                            translation: [pose.x, 0, pose.z]).matrix
-            worldRoot.transform = Transform(matrix: worldFromHead * roomFromCapture.inverse)
-            skyBox?.position = head
-            skyBox?.orientation = simd_quatf()
-            for (id, hotspot) in interaction.hotspotEntities { hotspot.isEnabled = (id != vp.id) }
+        let roomFromCapture = Transform(rotation: simd_quatf(angle: pose.yawDegrees * .pi / 180, axis: [0, 1, 0]),
+                                        translation: [pose.x, 0, pose.z]).matrix
+        worldRoot.transform = Transform(matrix: worldFromHead * roomFromCapture.inverse)
+        skyBox?.position = head
+        skyBox?.orientation = simd_quatf()
+        for (id, hotspot) in interaction.hotspotEntities { hotspot.isEnabled = (id != vp.id) }
     }
     
     /**
@@ -536,20 +546,20 @@ struct ImmersiveView: View {
         
         var discMat = UnlitMaterial(color: .white)
         discMat.blending = .transparent(opacity: .init(scale: 0.5))
-            root.addChild(ModelEntity(mesh: .generateCylinder(height: 0.004, radius: 0.22),
-                                      materials: [discMat]))
-
-            let orb = ModelEntity(mesh: .generateSphere(radius: 0.05),
-                                  materials: [UnlitMaterial(color: .cyan)])
-            orb.position = [0, 0.25, 0]
-            root.addChild(orb)
-
-            root.components.set(InputTargetComponent())
-            root.components.set(CollisionComponent(
-                shapes: [.generateSphere(radius: 0.3).offsetBy(translation: [0, 0.15, 0])]))
-            root.components.set(HoverEffectComponent())
-            return root
-        }
+        root.addChild(ModelEntity(mesh: .generateCylinder(height: 0.004, radius: 0.22),
+                                  materials: [discMat]))
+        
+        let orb = ModelEntity(mesh: .generateSphere(radius: 0.05),
+                              materials: [UnlitMaterial(color: .cyan)])
+        orb.position = [0, 0.25, 0]
+        root.addChild(orb)
+        
+        root.components.set(InputTargetComponent())
+        root.components.set(CollisionComponent(
+            shapes: [.generateSphere(radius: 0.3).offsetBy(translation: [0, 0.15, 0])]))
+        root.components.set(HoverEffectComponent())
+        return root
+    }
     private func fade(to target: Float, duration: Double = 0.25) async {
         let steps = 10
         let start = skyBox?.components[OpacityComponent.self]?.opacity ?? 1
@@ -561,7 +571,7 @@ struct ImmersiveView: View {
             try? await Task.sleep(for: .seconds(duration / Double(steps)))
         }
     }
-
+    
     
     private func makeAxes (_ len: Float = 0.3) -> Entity {
         let root = Entity()
@@ -583,29 +593,29 @@ struct ImmersiveView: View {
               let vp = Viewpoint.all.first(where: { $0.id == appModel.mySeat }) else { return }
         currentViewpoint = vp
     }
-
+    
     private func refreshView(log: Bool = true) {
         appModel.currentViewpointID = currentViewpoint.id
         if appModel.isShared { applySeat(currentViewpoint, log: log) }
         else { applyViewpoint(currentViewpoint, head: anchorHead, log: log) }
         appModel.worldFromRoom = worldRoot.transform.matrix
     }
-
+    
     /// SHARED: room is fixed and identical on every device; only the video differs
     private func applySeat(_ vp: Viewpoint, log: Bool) {
         let c = RoomLayout.tableCenter
         worldRoot.transform = Transform(translation: [-c.x, appModel.calibration.roomFloor, -c.z])   // table center lands on the template's .app
-
+        
         let pose = appModel.pose(forID: vp.id)
         skyBox?.position = .zero   // with a 1000 m sphere, being a meter off-center is a ~0.06° error
         skyBox?.orientation = simd_quatf(angle: pose.yawDegrees * .pi / 180, axis: [0, 1, 0])
-
+        
         for hotspot in interaction.hotspotEntities.values { hotspot.isEnabled = false }
-
+        
         // the system needs a moment to move you into your seat
         if log { Task { try? await Task.sleep(for: .seconds(2)); seatLog(vp) } }
     }
-
+    
     // The key realism check: is your head where the camera was?
     private func seatLog(_ vp: Viewpoint) {
         guard let head = appModel.headPosition() else { print("no head pose yet"); return }
@@ -627,20 +637,20 @@ struct ImmersiveView: View {
         guard !isTraveling, vp.id != currentViewpoint.id else { return }
         isTraveling = true
         defer { isTraveling = false }
-
+        
         await fade(to: 0)
-
+        
         let resumeTime = skyPlayer.currentTime()
         if (loadVideo(vp.videoName)) != nil {
             _ = await skyPlayer.seek(to: resumeTime)
             skyPlayer.play()
-
+            
             currentViewpoint = vp
             if appModel.isShared { sessionManager.takeSeat(vp.id) }
             anchorHead = appModel.headPosition() ?? anchorHead
             refreshView()
         }
-
+        
         await fade(to: 1)
     }
 }
@@ -656,6 +666,7 @@ final class PuzzleInteractionState {
     var currentOpacity: [String: Float] = [:]
     var tableYaw: Float = 0                 // how far the tray is currently turned
     var spinLastAngle: Float?               // hand direction last frame (nil = not spinning)
+    var lastSpinBroadcast: Date = .distantPast
 }
 
 #Preview(immersionStyle: .full) {

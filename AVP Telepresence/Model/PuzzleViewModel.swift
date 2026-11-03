@@ -26,6 +26,7 @@ final class PuzzleViewModel: ObservableObject {
     /// Fires on every remote-applied update. ImmersiveView subscribes to
     /// this to animate the corresponding RealityKit entities.
     let remoteUpdates = PassthroughSubject<RemotePuzzleUpdate, Never>()
+    let remoteTableYaw = PassthroughSubject<Float, Never>()
 
     private var cancellables = Set<AnyCancellable>()
 
