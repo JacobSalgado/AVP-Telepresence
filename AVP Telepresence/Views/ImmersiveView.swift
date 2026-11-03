@@ -25,7 +25,6 @@ struct Viewpoint: Identifiable, Equatable {
         .init(id: "c", videoName: "sudoku1", position: [0,-1.0,-4.0], yaw: 0), // first sudoku that is the first one to the left of the origin starting point
         .init(id: "d", videoName: "sudoku2", position: [4, 0, -4.0], yaw: 0) // second sudoku board to the right when user first looks left
     ]
-    
 }
 
 struct ImmersiveView: View {
@@ -74,6 +73,9 @@ struct ImmersiveView: View {
     private let referenceCardLift: Float = 0.05         // gap between table height and the card's bottom edge
      
     @State private var anchorHead: SIMD3<Float> = [0, 1.5, 0]
+    
+    // this allows users to rotate the table
+    @State private var turntable = Entity()
 
     var body: some View {
         RealityView { content, attachments in
@@ -96,11 +98,17 @@ struct ImmersiveView: View {
                     whiteboard.scale = .one * 1.8
                     worldRoot.addChild(whiteboard)
                 }
-                worldRoot.addChild(makeTableEntity())
+                //worldRoot.addChild(makeTableEntity())
+                turntable.position = [tablePosition.x, 0, tablePosition.z] // tray sits at table's spot
+                worldRoot.addChild(turntable)
+            
                 worldRoot.addChild(makeReferenceCardEntity())
                 
-                puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
-                worldRoot.addChild(puzzleAnchor)
+                //puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
+                //worldRoot.addChild(puzzleAnchor)
+            turntable.addChild(makeTableEntity())                       // table goes on tray
+            puzzleAnchor.position = [0, tableHeight + 0.002, 0]         // pieces go on tray
+            turntable.addChild(puzzleAnchor)
                 
                 // room origin
                 worldRoot.addChild(makeAxes(0.5))
@@ -238,7 +246,8 @@ struct ImmersiveView: View {
 
                         for member in group {
                             guard let start = interaction.dragStartPositions[member.id] else { continue }
-                            let newPos = start + translation3D
+                            var newPos = start + translation3D
+                            newPos.y = start.y // this keeps the piece at the table height, not allowing it to fall through or hover above
                             member.currentPosition = newPos
                             interaction.pieceEntities[member.id]?.position = newPos
                         }
@@ -250,9 +259,16 @@ struct ImmersiveView: View {
                             interaction.lastDragBroadcast = now
                             sessionManager.sendPuzzleDragUpdate(pieces: group)
                         }
+                    } else if value.entity.name == "tableTop" {
+                        spinTable(value)
                     }
                 }
                 .onEnded { value in
+                    if value.entity.name == "tableTop" {
+                        interaction.spinLastAngle = nil        // next grab starts fresh, no jump
+                        return
+                    }
+                    
                     guard value.entity.name.hasPrefix("piece_"),
                           let piece = pieceForEntity(value.entity) else {return}
 
@@ -340,7 +356,8 @@ struct ImmersiveView: View {
     private func makeTableEntity() -> Entity {
         let table = Entity()
         table.name = "puzzleTable"
-        table.position = [tablePosition.x, 0, tablePosition.z] // children are relative to the table center
+        //table.position = [tablePosition.x, 0, tablePosition.z] // children are relative to the table center
+        table.position = .zero
 
         let woodMaterial = SimpleMaterial(color: .init(red: 0.85, green: 0.75, blue: 0.60, alpha: 1.0),
                                           roughness: 0.5, isMetallic: false)
@@ -350,6 +367,10 @@ struct ImmersiveView: View {
         let top = ModelEntity(mesh: topMesh, materials: [woodMaterial])
         top.position = [0, tableHeight - tableThickness / 2, 0]
         table.addChild(top)
+        
+        top.name = "tableTop"
+        top.components.set(InputTargetComponent())
+        top.generateCollisionShapes(recursive: false)
 
         // Four legs running from the underside of the tabletop down to the floor.
         let legHeight = tableHeight - tableThickness
@@ -359,6 +380,26 @@ struct ImmersiveView: View {
         table.addChild(pedestal)
 
         return table
+    }
+    
+    private func spinTable(_ value: EntityTargetValue<DragGesture.Value>) {
+        // where is the hand in the room (measured against the room, not the tray,
+        // because tray is moving under the hand)
+        let hand = value.convert(value.location3D, from: .local, to: worldRoot)
+    
+        let angle = atan2(hand.x - turntable.position.x, hand.z - turntable.position.z)
+        
+        if let last = interaction.spinLastAngle {
+            var change = angle - last
+            // angles jump from +180 degrees to -180 degrees at one spot around the circle
+            // two lines stop that jump from spinning the table wildly
+            if change > .pi {change -= 2 * .pi}
+            if change < -.pi {change += 2 * .pi}
+            
+            interaction.tableYaw += change
+            turntable.orientation = simd_quatf(angle: interaction.tableYaw, axis: [0,1,0])
+        }
+        interaction.spinLastAngle = angle
     }
 
     /// Adjusts how see-through a piece is at runtime. Used to make the
@@ -613,6 +654,8 @@ final class PuzzleInteractionState {
     /// Tracks each piece's last-applied opacity scale so setPieceOpacity
     /// can skip redundant material reassignment when nothing's changing.
     var currentOpacity: [String: Float] = [:]
+    var tableYaw: Float = 0                 // how far the tray is currently turned
+    var spinLastAngle: Float?               // hand direction last frame (nil = not spinning)
 }
 
 #Preview(immersionStyle: .full) {
