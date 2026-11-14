@@ -21,7 +21,7 @@ struct Viewpoint: Identifiable, Equatable {
     // found out this doesn't require exact folder path. Just needs video name
     static let all: [Viewpoint] = [
         .init(id: "a", videoName: "table-view1", position: [0,0,0], yaw: 0), // origin starting point
-        .init(id: "b", videoName: "table-view2", position: [4,0,0], yaw: 0), // table view across from the origin start pos
+        .init(id: "b", videoName: "table-view2", position: [6,0,0], yaw: 0), // table view across from the origin start pos
         .init(id: "c", videoName: "sudoku1", position: [0,-1.0,-4.0], yaw: 0), // first sudoku that is the first one to the left of the origin starting point
         .init(id: "d", videoName: "sudoku2", position: [4, 0, -4.0], yaw: 0) // second sudoku board to the right when user first looks left
     ]
@@ -65,6 +65,7 @@ struct ImmersiveView: View {
     private let tableRadius: Float = 2.0
     private let tablePosition = RoomLayout.tableCenter // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
     private let tableThickness: Float = 0.04
+    private let tableRimWidth: Float = 0.12 // width of the grabbable table edge
     
     // Reference card: stands upright beside the table (not on top of it,
     // so it doesn't compete with tabletop space where pieces scatter).
@@ -106,7 +107,7 @@ struct ImmersiveView: View {
             
             //puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
             //worldRoot.addChild(puzzleAnchor)
-            turntable.addChild(makeTableEntity())                       // table goes on tray
+            await turntable.addChild(makeTableEntity())                       // table goes on tray
             puzzleAnchor.position = [0, tableHeight + 0.002, 0]         // pieces go on tray
             turntable.addChild(puzzleAnchor)
             
@@ -357,18 +358,46 @@ struct ImmersiveView: View {
     /// positioned at `tablePosition` (XZ) with its top surface at
     /// `tableHeight`. Swap the materials for something nicer once you have
     /// real art, or replace this whole function with a loaded USDZ model.
-    private func makeTableEntity() -> Entity {
+    private func makeTableEntity() async -> Entity {
         let table = Entity()
         table.name = "puzzleTable"
         //table.position = [tablePosition.x, 0, tablePosition.z] // children are relative to the table center
         table.position = .zero
         
+        let beige = UIColor(red: 230/255, green: 207/255, blue: 189/255, alpha: 1.0)
+        let _woodTex = try? await TextureResource(named: "white_maple_wood")
+        
+        var mat = PhysicallyBasedMaterial()
+        mat.roughness = 0.8
+        mat.metallic = 0.0
+        
+        if let woodTex = try? await TextureResource(named: "white_maple_wood") {
+            // texture supplies the color; white tint so it isn't darkened
+            mat.baseColor = .init(tint: .white, texture: .init(woodTex))
+            mat.emissiveColor = .init(color: .white, texture: .init(woodTex))
+            mat.emissiveIntensity = 0.25
+            mat.textureCoordinateTransform = .init(scale: SIMD2<Float>(1,1))
+        }
+        else
+        {
+            print ("white_maple_wood texture failed to load, falling back to flat beige")
+            mat.baseColor = .init(tint: beige)
+            mat.emissiveColor = .init(color: beige)
+            mat.emissiveIntensity = 0.5
+        }
+        
+        mat.emissiveColor = .init(color: beige)
+        mat.emissiveIntensity = 0.5
+    
+        
         let woodMaterial = SimpleMaterial(color: .init(red: 0.85, green: 0.75, blue: 0.60, alpha: 1.0),
                                           roughness: 0.5, isMetallic: false)
+        let rimMaterial = SimpleMaterial(color: .init(red: 0, green: 0, blue: 0, alpha: 1.0),
+                                       roughness: 0.5, isMetallic: false)
         
         // Tabletop slab, centered so its TOP face sits at tableHeight.
         let topMesh = MeshResource.generateCylinder(height: tableThickness, radius: tableRadius)
-        let top = ModelEntity(mesh: topMesh, materials: [woodMaterial])
+        let top = ModelEntity(mesh: topMesh, materials: [mat])
         top.position = [0, tableHeight - tableThickness / 2, 0]
         table.addChild(top)
         
@@ -376,12 +405,23 @@ struct ImmersiveView: View {
         top.components.set(InputTargetComponent())
         top.generateCollisionShapes(recursive: false)
         
+        // Soft glow wherever the user is looking on the tabletop
+        top.components.set(HoverEffectComponent(.spotlight(.init(color: .white, strength: 1.0))))
+
+        // Lighter wood disc covering the center. It has no collision, so it's
+        // purely visual: gaze passes through it to the tabletop underneath.
+        // This hides the glow everywhere except the exposed rim band.
+        let inlay = ModelEntity(mesh: .generateCylinder(height: 0.001, radius: tableRadius - tableRimWidth),
+                                materials: [mat]) // base of the table
+        inlay.position = [0, tableHeight + 0.0005, 0]
+        
         // Four legs running from the underside of the tabletop down to the floor.
         let legHeight = tableHeight - tableThickness
         let legMesh = MeshResource.generateCylinder(height: legHeight, radius: 0.05)
         let pedestal = ModelEntity(mesh: legMesh, materials: [woodMaterial])
         pedestal.position = [0, legHeight / 2, 0]
         table.addChild(pedestal)
+        table.addChild(inlay)
         
         return table
     }
@@ -391,7 +431,16 @@ struct ImmersiveView: View {
         // because tray is moving under the hand)
         let hand = value.convert(value.location3D, from: .local, to: worldRoot)
         
-        let angle = atan2(hand.x - turntable.position.x, hand.z - turntable.position.z)
+        let dx = hand.x - turntable.position.x
+        let dz = hand.z - turntable.position.z
+        let distanceFromCenter = (dx * dx + dz * dz).squareRoot()
+
+        // Only start a spin if the grab began on the rim band
+        if interaction.spinLastAngle == nil && distanceFromCenter < tableRadius - tableRimWidth {
+            return   // grab started in the middle of the table, not the rim
+        }
+        
+        let angle = atan2(dx, dz)
         
         if let last = interaction.spinLastAngle {
             var change = angle - last
@@ -497,6 +546,7 @@ struct ImmersiveView: View {
         // generatePlane already lies flat (XZ-plane, normal +Y) — that's
         // exactly "resting on a table," so no rotation is applied here.
         entity.components.set(InputTargetComponent())
+        entity.components.set(HoverEffectComponent())
         entity.generateCollisionShapes(recursive: false)
         return entity
     }
