@@ -16,6 +16,38 @@ struct RemotePuzzleUpdate {
 final class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var isSolved: Bool = false
+    
+    private(set) var tilesX = 0
+    private(set) var tilesY = 0
+
+    private func xzDistance(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
+        simd_distance(SIMD2(a.x, a.z), SIMD2(b.x, b.z))
+    }
+    
+    private static let cornerClearance: Float = 0.03
+
+    private var rowRange = 0...0
+    private var colRange = 0...0
+
+    private func isCorner(_ p: PuzzlePiece) -> Bool {
+        (p.data.row == rowRange.lowerBound || p.data.row == rowRange.upperBound) &&
+        (p.data.col == colRange.lowerBound || p.data.col == colRange.upperBound)
+    }
+
+    /// Sitting on its home spot inside the corner frame.
+    func isAnchored(_ p: PuzzlePiece) -> Bool {
+        xzDistance(p.currentPosition, p.homeCenter) < 0.001
+    }
+
+    /// Anchored pieces are aligned with every other anchored piece.
+    /// Join any that touch so they move and sync as one group.
+    private func joinAnchoredNeighbors(of piece: PuzzlePiece) {
+        for member in piecesInGroup(of: piece) where isAnchored(member) {
+            for neighbor in neighbors(of: member) where isAnchored(neighbor) {
+                union(member.id, neighbor.id)
+            }
+        }
+    }
 
     /// Overall board size in meters. Adjust to taste for how big the
     /// puzzle should appear on the table. Aspect ratio is taken from
@@ -26,7 +58,6 @@ final class PuzzleViewModel: ObservableObject {
     /// Fires on every remote-applied update. ImmersiveView subscribes to
     /// this to animate the corresponding RealityKit entities.
     let remoteUpdates = PassthroughSubject<RemotePuzzleUpdate, Never>()
-    let remoteTableYaw = PassthroughSubject<Float, Never>()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -54,6 +85,8 @@ final class PuzzleViewModel: ObservableObject {
         let root = find(piece.id)
         return pieces.filter { find($0.id) == root }
     }
+    
+    
 
     /// Loads layout.json from the app bundle (add it to your asset/resource
     /// folder with "Copy Bundle Resources" build phase membership).
@@ -69,18 +102,28 @@ final class PuzzleViewModel: ObservableObject {
         let boardDepth = boardWidthMeters / Float(aspect)
         boardSizeMeters = SIMD3<Float>(boardWidthMeters, boardDepth, 0)
         let boardSize2D = SIMD2<Float>(boardWidthMeters, boardDepth)
+        
+        let rows = layout.pieces.map(\.row), cols = layout.pieces.map(\.col)
+        rowRange = rows.min()!...rows.max()!
+        colRange = cols.min()!...cols.max()!
 
         var newPieces: [PuzzlePiece] = []
         for pieceData in layout.pieces {
-            let scatter = Self.randomScatterPosition(around: boardSize2D)
             let piece = PuzzlePiece(data: pieceData, puzzleDimensions: layout.puzzle,
-                                     boardSizeMeters: boardSize2D, scatterPosition: scatter)
+                                    boardSizeMeters: boardSize2D, scatterPosition: .zero)
             newPieces.append(piece)
-
-            // Watch each piece's placement state so we can detect a full solve.
             piece.$isPlaced
                 .sink { [weak self] _ in self?.checkSolved() }
                 .store(in: &cancellables)
+        }
+
+        let corners = newPieces.filter { isCorner($0) }
+
+        for p in newPieces {
+            if isCorner(p) {
+                p.currentPosition = p.homeCenter
+                p.isPlaced = true
+            }
         }
         pieces = newPieces
         piecesByGridPosition = Dictionary(uniqueKeysWithValues:
@@ -103,31 +146,36 @@ final class PuzzleViewModel: ObservableObject {
         let group = piecesInGroup(of: draggedPiece)
         let groupRoot = find(draggedPiece.id)
 
-        var best: (member: PuzzlePiece, neighbor: PuzzlePiece, dist: Float)? = nil
+        // Closest valid snap wins, whether it's a corner marker or a neighbor.
+        var best: (correction: SIMD3<Float>, neighbor: PuzzlePiece?, dist: Float)? = nil
 
+        // 1. Corner pieces snap to their marker (= their home spot)
+        for member in group where isCorner(member) {
+            let dist = xzDistance(member.currentPosition, member.homeCenter)
+            if dist < PuzzlePiece.cornerSnapDistance, (best == nil || dist < best!.dist) {
+                best = (member.homeCenter - member.currentPosition, nil, dist)
+            }
+        }
+
+        // 2. Any piece snaps to a matching neighbor (same logic as before)
         for member in group {
             for neighbor in neighbors(of: member) {
-                guard find(neighbor.id) != groupRoot else { continue } // same group already
-
-                let expectedOffset = member.homeCenter - neighbor.homeCenter
-                let expectedPosition = neighbor.currentPosition + expectedOffset
-                let dist = simd_distance(SIMD2<Float>(member.currentPosition.x, member.currentPosition.z),
-                                         SIMD2<Float>(expectedPosition.x, expectedPosition.z))
+                guard find(neighbor.id) != groupRoot else { continue }
+                let expected = neighbor.currentPosition + (member.homeCenter - neighbor.homeCenter)
+                let dist = xzDistance(member.currentPosition, expected)
                 if dist < PuzzlePiece.snapDistance, (best == nil || dist < best!.dist) {
-                    best = (member, neighbor, dist)
+                    best = (expected - member.currentPosition, neighbor, dist)
                 }
             }
         }
-        if let match = best {
-            let expectedOffset = match.member.homeCenter - match.neighbor.homeCenter
-            let expectedPosition = match.neighbor.currentPosition + expectedOffset
-            let correction = expectedPosition - match.member.currentPosition
 
+        if let match = best {
             for m in group {
-                m.currentPosition += correction
+                m.currentPosition += match.correction
                 m.isPlaced = true
             }
-            union(match.member.id, match.neighbor.id)
+            if let neighbor = match.neighbor { union(draggedPiece.id, neighbor.id) }
+            joinAnchoredNeighbors(of: draggedPiece)
         } else {
             for m in group { m.isPlaced = false }
         }
@@ -182,5 +230,21 @@ final class PuzzleViewModel: ObservableObject {
         let z = sin(angle) * radius
         let y = Float.random(in: 0.005...0.02)
         return SIMD3<Float>(x, y, z)
+    }
+
+    /// True if a piece placed at `center` would overlap `other` where it sits in the frame.
+    private static func overlaps(_ center: SIMD3<Float>, size: SIMD2<Float>, other: PuzzlePiece) -> Bool {
+        abs(center.x - other.homeCenter.x) < (size.x + other.pieceSize.x) / 2 + cornerClearance &&
+        abs(center.z - other.homeCenter.z) < (size.y + other.pieceSize.y) / 2 + cornerClearance
+    }
+
+    private static func scatterPosition(for piece: PuzzlePiece, board: SIMD2<Float>,
+                                        avoiding corners: [PuzzlePiece]) -> SIMD3<Float> {
+        var candidate = randomScatterPosition(around: board)
+        for _ in 0..<50 {
+            if !corners.contains(where: { overlaps(candidate, size: piece.pieceSize, other: $0) }) { break }
+            candidate = randomScatterPosition(around: board)
+        }
+        return candidate
     }
 }

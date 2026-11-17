@@ -105,8 +105,8 @@ final class PuzzlePiece: Identifiable, ObservableObject {
         let normW = Float(data.bounds.width / puzzleDimensions.width)
         let normH = Float(data.bounds.height / puzzleDimensions.height)
 
-        let hx = normX * boardSizeMeters.x
-        let hz = normY * boardSizeMeters.y
+        let hx = (normX - 0.5) * boardSizeMeters.x
+        let hz = (normY - 0.5) * boardSizeMeters.y
 
         // Every piece's mesh is a plain rectangle sized to its full
         // (generous, tab-inclusive) bounding box — which means adjacent
@@ -134,4 +134,5 @@ final class PuzzlePiece: Identifiable, ObservableObject {
 
     /// Distance threshold under which a drag-release snaps the piece home.
     static let snapDistance: Float = 0.025 // 2.5cm, tune to taste
+    static let cornerSnapDistance: Float = 0.05
 }

@@ -199,8 +199,6 @@ class SessionManager {
             tileSudokuModel?.applyRemote(placed: placed)
         case .advanceSection(let raw):
             if let s = StudySection(rawValue: raw) { appModel?.section = s }
-        case .tableRotated(let yaw):
-            puzzleViewModel?.remoteTableYaw.send(yaw)
         }
     }
     @MainActor
@@ -264,7 +262,6 @@ enum SceneMessage: Codable {
     case puzzlePieceDragEnded(groupPositions: [String: CodableVector3], isPlaced: Bool)
     case tileSudokuUpdated(placed: [String: Int])
     case advanceSection(String)
-    case tableRotated(yaw: Float)
     
     private enum CodingKeys: String, CodingKey {
         case type, id, transform, cardID, groupID, label, stroke, groupPositions, isPlaced, tilePlaced, section, yaw
@@ -299,9 +296,6 @@ enum SceneMessage: Codable {
         case .advanceSection(let s):
             try container.encode("advanceSection", forKey: .type)
             try container.encode(s, forKey: .section)
-        case .tableRotated(let yaw):
-            try container.encode("tableRotated", forKey: .type)
-            try container.encode(yaw, forKey: .yaw)
         }
     }
     
@@ -334,8 +328,6 @@ enum SceneMessage: Codable {
             self = .tileSudokuUpdated(placed: placed)
         case "advanceSection":
             self = .advanceSection(try container.decode(String.self, forKey: .section))
-        case "tableRotated":
-            self = .tableRotated(yaw: try container.decode(Float.self, forKey: .yaw))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,

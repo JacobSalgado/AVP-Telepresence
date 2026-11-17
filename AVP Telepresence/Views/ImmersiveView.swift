@@ -65,7 +65,6 @@ struct ImmersiveView: View {
     private let tableRadius: Float = 2.0
     private let tablePosition = RoomLayout.tableCenter // XZ placement; Y is the floor, table sits on top; NEGATIVE values move it left, POSITIVE right
     private let tableThickness: Float = 0.04
-    private let tableRimWidth: Float = 0.12 // width of the grabbable table edge
     
     // Reference card: stands upright beside the table (not on top of it,
     // so it doesn't compete with tabletop space where pieces scatter).
@@ -73,10 +72,31 @@ struct ImmersiveView: View {
     private let referenceCardSideMargin: Float = 0.10 // gap from the table's edge
     private let referenceCardLift: Float = 0.05         // gap between table height and the card's bottom edge
     
+    private let referenceCardGap: Float = 0.15   // gap between the puzzle's top edge and the card
+    
     @State private var anchorHead: SIMD3<Float> = [0, 1.5, 0]
     
+    private let referenceCardAngleDegrees: Float = 0 // 0 = straight left o A; + slides it toward the far side
+    
+    // floor direction from viewpoint A to the table center
+    private var tableForward: SIMD3<Float> {
+        let a = Viewpoint.all[0].position
+        return simd_normalize(SIMD3<Float>(tablePosition.x - a.x, 0 ,tablePosition.z - a.z))
+    }
+    
+    /// Direction from the table center to the reference card (left of seat A at angle 0).
+    private var cardDirection: SIMD3<Float> {
+        let left = simd_normalize(simd_cross(SIMD3<Float>(0, 1, 0), tableForward))
+        let a = referenceCardAngleDegrees * .pi / 180
+        return simd_normalize(left * cos(a) + tableForward * sin(a))
+    }
+
+    /// Turns the puzzle so its top edge (local -Z) points at the card.
+    private var facingYaw: Float {
+        atan2(-cardDirection.x, -cardDirection.z)
+    }
     // this allows users to rotate the table
-    @State private var turntable = Entity()
+    @State private var tableRoot = Entity()
     
     var body: some View {
         RealityView { content, attachments in
@@ -100,16 +120,15 @@ struct ImmersiveView: View {
                 worldRoot.addChild(whiteboard)
             }
             //worldRoot.addChild(makeTableEntity())
-            turntable.position = [tablePosition.x, 0, tablePosition.z] // tray sits at table's spot
-            worldRoot.addChild(turntable)
-            
-            worldRoot.addChild(makeReferenceCardEntity())
+            tableRoot.position = [tablePosition.x, 0, tablePosition.z] // tray sits at table's spot
+            worldRoot.addChild(tableRoot)
             
             //puzzleAnchor.position = [tablePosition.x, tableHeight + 0.002, tablePosition.z]
             //worldRoot.addChild(puzzleAnchor)
-            await turntable.addChild(makeTableEntity())                       // table goes on tray
+            await tableRoot.addChild(makeTableEntity()) // table goes on tray
             puzzleAnchor.position = [0, tableHeight + 0.002, 0]         // pieces go on tray
-            turntable.addChild(puzzleAnchor)
+            puzzleAnchor.orientation = simd_quatf(angle: facingYaw, axis: [0,1,0])
+            tableRoot.addChild(puzzleAnchor)
             
             // room origin
             worldRoot.addChild(makeAxes(0.5))
@@ -187,11 +206,14 @@ struct ImmersiveView: View {
             guard !hasLoadedPuzzle else { return }
             hasLoadedPuzzle = true
             puzzleViewModel.loadPuzzle()
+            let board = puzzleViewModel.boardSizeMeters
+            puzzleAnchor.addChild(makeCornerMarkers(boardSize: SIMD2(board.x, board.y)))
+            
+            tableRoot.addChild(makeReferenceCardEntity(boardDepth: board.y))
             
             // Hand SessionManager a reference so it can push incoming
             // network updates straight into the model.
             sessionManager.puzzleViewModel = puzzleViewModel
-            
             // Block 1: remote PIECE drags (your original code, restored)
             puzzleViewModel.remoteUpdates
                 .sink { update in
@@ -209,16 +231,6 @@ struct ImmersiveView: View {
                     }
                 }
                 .store(in: &interaction.cancellables)
-            
-            // Block 2: remote TABLE spins (new)
-            puzzleViewModel.remoteTableYaw
-                .sink { yaw in
-                    interaction.tableYaw = yaw   // remember it, so if I spin next I start from here
-                    var t = turntable.transform
-                    t.rotation = simd_quatf(angle: yaw, axis: [0, 1, 0])
-                    turntable.move(to: t, relativeTo: turntable.parent, duration: 0.08)
-                }
-                .store(in: &interaction.cancellables)
         }
         // this handles gesture when interacting with the whiteboard
         // or any puzzle pieces
@@ -234,6 +246,7 @@ struct ImmersiveView: View {
                     } else if value.entity.name.hasPrefix("piece_"),
                               let piece = pieceForEntity(value.entity) {
                         let group = puzzleViewModel.piecesInGroup(of: piece)
+                        guard !group.contains(where: { puzzleViewModel.isAnchored($0) }) else { return }
                         
                         if interaction.dragStartPositions[piece.id] == nil {
                             for member in group {
@@ -263,17 +276,9 @@ struct ImmersiveView: View {
                             interaction.lastDragBroadcast = now
                             sessionManager.sendPuzzleDragUpdate(pieces: group)
                         }
-                    } else if value.entity.name == "tableTop" {
-                        spinTable(value)
                     }
                 }
                 .onEnded { value in
-                    if value.entity.name == "tableTop" {
-                        interaction.spinLastAngle = nil        // next grab starts fresh, no jump
-                        sessionManager.send(.tableRotated(yaw: interaction.tableYaw))
-                        return
-                    }
-                    
                     guard value.entity.name.hasPrefix("piece_"),
                           let piece = pieceForEntity(value.entity) else {return}
                     
@@ -290,14 +295,6 @@ struct ImmersiveView: View {
                         interaction.pieceEntities[member.id]?.position = member.currentPosition
                     }
                     sessionManager.sendPuzzleDragEnded(pieces: merged)
-                    
-                    for member in group {
-                        interaction.pieceEntities[member.id]?.position = member.currentPosition
-                    }
-                    
-                    // Broadcast the final, settled state (position + placed)
-                    // so remote clients land in exactly the same spot.
-                    sessionManager.sendPuzzleDragEnded(pieces: group)
                 }
         )
         .simultaneousGesture(
@@ -386,79 +383,20 @@ struct ImmersiveView: View {
             mat.emissiveIntensity = 0.5
         }
         
-        mat.emissiveColor = .init(color: beige)
-        mat.emissiveIntensity = 0.5
-    
-        
-        let woodMaterial = SimpleMaterial(color: .init(red: 0.85, green: 0.75, blue: 0.60, alpha: 1.0),
-                                          roughness: 0.5, isMetallic: false)
-        let rimMaterial = SimpleMaterial(color: .init(red: 0, green: 0, blue: 0, alpha: 1.0),
-                                       roughness: 0.5, isMetallic: false)
-        
         // Tabletop slab, centered so its TOP face sits at tableHeight.
         let topMesh = MeshResource.generateCylinder(height: tableThickness, radius: tableRadius)
         let top = ModelEntity(mesh: topMesh, materials: [mat])
         top.position = [0, tableHeight - tableThickness / 2, 0]
         table.addChild(top)
         
-        top.name = "tableTop"
-        top.components.set(InputTargetComponent())
-        top.generateCollisionShapes(recursive: false)
-        
-        // Soft glow wherever the user is looking on the tabletop
-        top.components.set(HoverEffectComponent(.spotlight(.init(color: .white, strength: 1.0))))
-
-        // Lighter wood disc covering the center. It has no collision, so it's
-        // purely visual: gaze passes through it to the tabletop underneath.
-        // This hides the glow everywhere except the exposed rim band.
-        let inlay = ModelEntity(mesh: .generateCylinder(height: 0.001, radius: tableRadius - tableRimWidth),
-                                materials: [mat]) // base of the table
-        inlay.position = [0, tableHeight + 0.0005, 0]
-        
         // Four legs running from the underside of the tabletop down to the floor.
         let legHeight = tableHeight - tableThickness
         let legMesh = MeshResource.generateCylinder(height: legHeight, radius: 0.05)
-        let pedestal = ModelEntity(mesh: legMesh, materials: [woodMaterial])
+        let pedestal = ModelEntity(mesh: legMesh, materials: [mat])
         pedestal.position = [0, legHeight / 2, 0]
         table.addChild(pedestal)
-        table.addChild(inlay)
         
         return table
-    }
-    
-    private func spinTable(_ value: EntityTargetValue<DragGesture.Value>) {
-        // where is the hand in the room (measured against the room, not the tray,
-        // because tray is moving under the hand)
-        let hand = value.convert(value.location3D, from: .local, to: worldRoot)
-        
-        let dx = hand.x - turntable.position.x
-        let dz = hand.z - turntable.position.z
-        let distanceFromCenter = (dx * dx + dz * dz).squareRoot()
-
-        // Only start a spin if the grab began on the rim band
-        if interaction.spinLastAngle == nil && distanceFromCenter < tableRadius - tableRimWidth {
-            return   // grab started in the middle of the table, not the rim
-        }
-        
-        let angle = atan2(dx, dz)
-        
-        if let last = interaction.spinLastAngle {
-            var change = angle - last
-            // angles jump from +180 degrees to -180 degrees at one spot around the circle
-            // two lines stop that jump from spinning the table wildly
-            if change > .pi {change -= 2 * .pi}
-            if change < -.pi {change += 2 * .pi}
-            
-            interaction.tableYaw += change
-            turntable.orientation = simd_quatf(angle: interaction.tableYaw, axis: [0,1,0])
-        }
-        interaction.spinLastAngle = angle
-        
-        let now = Date()
-        if now.timeIntervalSince(interaction.lastSpinBroadcast) >= dragBroadcastInterval {
-            interaction.lastSpinBroadcast = now
-            sessionManager.send(.tableRotated(yaw: interaction.tableYaw))
-        }
     }
     
     /// Adjusts how see-through a piece is at runtime. Used to make the
@@ -485,7 +423,7 @@ struct ImmersiveView: View {
     /// just beside the table (not on its surface) so it doesn't compete
     /// with the tabletop space pieces scatter across. Add the preview
     /// image to your Asset Catalog as an image set named "puzzlePreview".
-    private func makeReferenceCardEntity() -> Entity {
+    private func makeReferenceCardEntity(boardDepth: Float) -> Entity {
         let card = Entity()
         card.name = "referenceCard"
         
@@ -502,22 +440,10 @@ struct ImmersiveView: View {
         material.blending = .opaque // reference image has no transparency to worry about
         let cardHeight = referenceCardWidth / aspect
         
-        let image = ModelEntity(mesh: .generatePlane(width: referenceCardWidth, height: cardHeight), materials: [material])
-        card.addChild(image)
-        
-        // "right of the table" as seen from viewpoint A
-        let a = Viewpoint.all[0].position
-        let toTable = simd_normalize(SIMD3<Float>(tablePosition.x - a.x, 0, tablePosition.z - a.z))
-        let right = simd_normalize(simd_cross(toTable, [0, 1, 0]))
-        
-        let offset = tableRadius + referenceCardSideMargin + referenceCardWidth / 2
-        card.position = [tablePosition.x + right.x * offset,
-                         tableHeight + referenceCardLift + cardHeight / 2,
-                         tablePosition.z + right.z * offset]
-        
-        // turns to face whoever is looking, so it's readable from both seats
+        // Stands just past the puzzle's top edge
+        let offset = boardDepth / 2 + referenceCardGap
+        card.position = cardDirection * offset + [0, tableHeight + referenceCardLift + cardHeight / 2, 0]
         card.components.set(BillboardComponent())
-        
         return card
     }
     
@@ -682,6 +608,30 @@ struct ImmersiveView: View {
         sessionManager.send(.advanceSection(StudySection.sudoku.rawValue))
     }
     
+    private func makeCornerMarkers(boardSize: SIMD2<Float>, center: SIMD2<Float> = .zero) -> Entity {
+        let root = Entity()
+        root.name = "puzzleCorners"
+        let arm: Float = 0.15, thick: Float = 0.008, height: Float = 0.002
+        let mat = UnlitMaterial(color: .white)
+        let hx = boardSize.x / 2 + thick / 2
+        let hz = boardSize.y / 2 + thick / 2
+
+        for (sx, sz) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] as [(Float, Float)] {
+            let corner = Entity()
+            // top flush with the anchor plane, so it sits under any piece
+            corner.position = [center.x + sx * hx, -height / 2, center.y + sz * hz]
+
+            let xArm = ModelEntity(mesh: .generateBox(size: [arm, height, thick]), materials: [mat])
+            xArm.position = [-sx * arm / 2, 0, 0]          // runs inward along the edge
+            let zArm = ModelEntity(mesh: .generateBox(size: [thick, height, arm]), materials: [mat])
+            zArm.position = [0, 0, -sz * arm / 2]
+            corner.addChild(xArm)
+            corner.addChild(zArm)
+            root.addChild(corner)
+        }
+        return root
+    }
+    
     @MainActor
     private func travel(to vp: Viewpoint) async {
         guard !isTraveling, vp.id != currentViewpoint.id else { return }
@@ -714,9 +664,6 @@ final class PuzzleInteractionState {
     /// Tracks each piece's last-applied opacity scale so setPieceOpacity
     /// can skip redundant material reassignment when nothing's changing.
     var currentOpacity: [String: Float] = [:]
-    var tableYaw: Float = 0                 // how far the tray is currently turned
-    var spinLastAngle: Float?               // hand direction last frame (nil = not spinning)
-    var lastSpinBroadcast: Date = .distantPast
 }
 
 #Preview(immersionStyle: .full) {
