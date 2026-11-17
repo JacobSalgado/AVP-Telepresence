@@ -68,7 +68,7 @@ struct ImmersiveView: View {
     
     // Reference card: stands upright beside the table (not on top of it,
     // so it doesn't compete with tabletop space where pieces scatter).
-    private let referenceCardWidth: Float = 0.6
+    private let referenceCardWidth: Float = 0.8
     private let referenceCardSideMargin: Float = 0.10 // gap from the table's edge
     private let referenceCardLift: Float = 0.05         // gap between table height and the card's bottom edge
     
@@ -362,25 +362,13 @@ struct ImmersiveView: View {
         table.position = .zero
         
         let beige = UIColor(red: 230/255, green: 207/255, blue: 189/255, alpha: 1.0)
-        let _woodTex = try? await TextureResource(named: "white_maple_wood")
-        
-        var mat = PhysicallyBasedMaterial()
-        mat.roughness = 0.8
-        mat.metallic = 0.0
-        
+        var mat = UnlitMaterial()
         if let woodTex = try? await TextureResource(named: "white_maple_wood") {
-            // texture supplies the color; white tint so it isn't darkened
-            mat.baseColor = .init(tint: .white, texture: .init(woodTex))
-            mat.emissiveColor = .init(color: .white, texture: .init(woodTex))
-            mat.emissiveIntensity = 0.25
-            mat.textureCoordinateTransform = .init(scale: SIMD2<Float>(1,1))
-        }
-        else
-        {
-            print ("white_maple_wood texture failed to load, falling back to flat beige")
-            mat.baseColor = .init(tint: beige)
-            mat.emissiveColor = .init(color: beige)
-            mat.emissiveIntensity = 0.5
+            // tint multiplies the texture: beige warms up the pale maple
+            mat.color = .init(tint: .white, texture: .init(woodTex))
+        } else {
+            print("white_maple_wood texture failed to load, falling back to flat beige")
+            mat.color = .init(tint: .white)
         }
         
         // Tabletop slab, centered so its TOP face sits at tableHeight.
@@ -439,6 +427,10 @@ struct ImmersiveView: View {
         }
         material.blending = .opaque // reference image has no transparency to worry about
         let cardHeight = referenceCardWidth / aspect
+        
+        card.addChild(ModelEntity(mesh: .generatePlane(width: referenceCardWidth, height: cardHeight),
+                                  materials: [material]))
+        
         
         // Stands just past the puzzle's top edge
         let offset = boardDepth / 2 + referenceCardGap

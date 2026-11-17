@@ -52,7 +52,7 @@ final class PuzzleViewModel: ObservableObject {
     /// Overall board size in meters. Adjust to taste for how big the
     /// puzzle should appear on the table. Aspect ratio is taken from
     /// layout.json's puzzle.width/height automatically.
-    let boardWidthMeters: Float = 2.0
+    let boardWidthMeters: Float = 2.4
     private(set) var boardSizeMeters: SIMD3<Float> = .zero
 
     /// Fires on every remote-applied update. ImmersiveView subscribes to
